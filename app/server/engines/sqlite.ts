@@ -37,10 +37,13 @@ export function sqliteDdl(t: Table) {
 export class SqliteEngine {
   readonly template: string
   readonly file: string
+  /** Copie dédiée aux corrections d'exercices : les changements validés dans le playground ne la touchent pas. */
+  readonly checkFile: string
   constructor(dataDir: string, private maxRows: number, private timeoutMs: number) {
     mkdirSync(dataDir, { recursive: true })
     this.template = join(dataDir, 'kit.sqlite')
     this.file = join(dataDir, 'training.sqlite')
+    this.checkFile = join(dataDir, 'check.sqlite')
   }
 
   /** Construit le modèle depuis le jeu de données (si absent), puis la copie de travail (si absente). */
@@ -59,7 +62,9 @@ export class SqliteEngine {
       db.exec('ANALYZE')
       db.close()
       renameSync(tmp, this.template)
+      copyFileSync(this.template, this.checkFile)
     }
+    if (!existsSync(this.checkFile)) copyFileSync(this.template, this.checkFile)
     if (force || !existsSync(this.file)) this.reset()
   }
 
@@ -68,22 +73,22 @@ export class SqliteEngine {
   }
 
   query(sql: string): Promise<EngineResponse> {
-    return this.run(splitStatements(sql).map((s) => ({ text: s.text, from: s.from, keyword: firstKeyword(s.text) })), this.maxRows)
+    return this.run(this.file, splitStatements(sql).map((s) => ({ text: s.text, from: s.from, keyword: firstKeyword(s.text) })), this.maxRows)
   }
 
   /** Exécute sql puis check dans une transaction toujours annulée (le worker annule toute transaction ouverte), sans limite de lignes. */
   async rolledBack(sql: string, check?: string): Promise<EngineResponse> {
     const list = [{ text: 'BEGIN', from: 0, keyword: 'BEGIN' }, ...splitStatements(sql).map((s) => ({ text: s.text, from: s.from, keyword: firstKeyword(s.text) }))]
     if (check) list.push({ text: check, from: 0, keyword: 'SELECT' })
-    const r = await this.run(list, Number.MAX_SAFE_INTEGER)
+    const r = await this.run(this.checkFile, list, Number.MAX_SAFE_INTEGER)
     if (r.ok) r.results = check ? r.results.slice(-1) : r.results.slice(1)
     return r
   }
 
-  private run(statements: { text: string; from: number; keyword: string }[], maxRows: number): Promise<EngineResponse> {
+  private run(file: string, statements: { text: string; from: number; keyword: string }[], maxRows: number): Promise<EngineResponse> {
     const started = performance.now()
     return new Promise((resolve) => {
-      const worker = new Worker(new URL('./sqlite-worker.mjs', import.meta.url), { workerData: { file: this.file, statements, maxRows } })
+      const worker = new Worker(new URL('./sqlite-worker.mjs', import.meta.url), { workerData: { file, statements, maxRows } })
       const done = (r: Omit<EngineResponse, 'ms'>) => {
         clearTimeout(timer)
         resolve({ ...r, ms: Math.round(performance.now() - started) } as EngineResponse)

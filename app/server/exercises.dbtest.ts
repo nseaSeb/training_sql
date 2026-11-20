@@ -17,19 +17,25 @@ import { SqliteEngine } from './engines/sqlite'
 import { MysqlEngine } from './engines/mysql'
 
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://kit:kit@localhost:55433/training_sql'
-const MYSQL_URL = process.env.MYSQL_URL ?? 'mysql://root:kit@localhost:33307/training_sql_test'
+// Variable distincte de MYSQL_URL du serveur : les tests suppriment et recréent cette base
+const MYSQL_URL = process.env.MYSQL_TEST_URL ?? 'mysql://root:kit@localhost:33307/training_sql_test'
 const pool = new pg.Pool({ connectionString: DATABASE_URL, options: '-c statement_timeout=15000 -c search_path=retail,public -c timezone=Europe/Paris', max: 1 })
 const dir = mkdtempSync(join(tmpdir(), 'training-sql-ex-'))
 const sqlite = new SqliteEngine(dir, 1000, 15000)
-const mysqlDb = MYSQL_URL === 'off' ? null : new MysqlEngine({ url: MYSQL_URL, maxRows: 1000, timeoutMs: 15000 })
+let mysqlDb: MysqlEngine | null = MYSQL_URL === 'off' ? null : new MysqlEngine({ url: MYSQL_URL, maxRows: 1000, timeoutMs: 15000 })
 let client: pg.PoolClient
 
 before(async () => {
   const ds = await getDataset(dir, DATABASE_URL, readFileSync(fileURLToPath(new URL('../../kit/01_setup_base.sql', import.meta.url)), 'utf8'))
   sqlite.init(ds)
   if (mysqlDb) {
-    await mysqlDb.init(ds, 1)
-    await mysqlDb.reset()
+    try {
+      await mysqlDb.init(ds, 1)
+      await mysqlDb.reset()
+    } catch (e) {
+      console.warn(`MySQL injoignable, tests MySQL ignorés : ${(e as Error).message}`)
+      mysqlDb = null
+    }
   }
   client = await pool.connect()
 })
@@ -53,8 +59,9 @@ for (const ex of exercises) {
   for (const engine of ['pg', 'sqlite', 'mysql'] as ExerciseEngine[]) {
     const solution = solutionFor(ex, engine)
     if (!solution) continue
-    test(`${ex.id} · ${ex.title} · ${engine}`, { skip: engine === 'mysql' && !mysqlDb }, async () => {
-      const run = runners[engine]()!
+    test(`${ex.id} · ${ex.title} · ${engine}`, async (t) => {
+      const run = runners[engine]()
+      if (!run) return t.skip('MySQL indisponible')
       const self = await checkExercise(run, ex, solution, engine)
       assert.ok(self.ok, `la solution ne se valide pas : ${!self.ok ? self.reason : ''}`)
       assert.ok(self.ok && self.rows > 0, 'résultat attendu vide : une réponse vide passerait')

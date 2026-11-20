@@ -159,7 +159,6 @@ export const exercises: Exercise[] = [
     prompt: 'Liste les produits dont le libellé contient « bio », quelle que soit la casse (Bio, BIO, bio…).\n\nColonnes attendues : `id`, `libelle`.',
     starter: "SELECT id, libelle FROM produits WHERE libelle LIKE '%bio%';",
     solution: "SELECT id, libelle\nFROM produits\nWHERE libelle ILIKE '%bio%';",
-    engines: { sqlite: "SELECT id, libelle\nFROM produits\nWHERE libelle LIKE '%bio%';", mysql: "SELECT id, libelle\nFROM produits\nWHERE libelle LIKE '%bio%';" },
     hints: ['`LIKE` est sensible à la casse : `%bio%` ne trouve pas « Bio ».', '`ILIKE` est la version insensible à la casse de PostgreSQL (ailleurs : `lower(libelle) LIKE`).'],
   },
   {

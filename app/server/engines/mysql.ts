@@ -6,6 +6,9 @@ import type { EngineResponse, EngineResult, SchemaRow } from './types'
 
 const q = (id: string) => `\`${id}\``
 
+/** Instructions annulables par ROLLBACK, seules acceptées dans une correction MySQL. */
+export const MYSQL_CHECKABLE = new Set(['SELECT', 'WITH', 'INSERT', 'UPDATE', 'DELETE', 'REPLACE'])
+
 function mysqlType(c: Column) {
   switch (c.type) {
     case 'integer':
@@ -45,20 +48,27 @@ type Config = { url: string; maxRows: number; timeoutMs: number }
 
 export class MysqlEngine {
   private database: string
+  /** Copie dédiée aux corrections d'exercices : les changements validés dans le playground ne la touchent pas. */
+  private checkDb: string
   private ds: Dataset | null = null
   constructor(private cfg: Config) {
     this.database = new URL(cfg.url).pathname.slice(1) || 'training_sql'
+    this.checkDb = `${this.database}_check`
   }
 
-  private connect(withDb = true) {
+  private timeoutMessage(err: { message: string; code?: string }) {
+    return err.code === 'PROTOCOL_SEQUENCE_TIMEOUT' ? `Requête interrompue au bout de ${this.cfg.timeoutMs / 1000} s.` : err.message
+  }
+
+  private connect(db: string | null = this.database, multipleStatements = true) {
     const u = new URL(this.cfg.url)
     return mysql.createConnection({
       host: u.hostname,
       port: Number(u.port || 3306),
       user: decodeURIComponent(u.username),
       password: decodeURIComponent(u.password),
-      database: withDb ? this.database : undefined,
-      multipleStatements: true,
+      database: db ?? undefined,
+      multipleStatements,
       dateStrings: true, // dates telles que MySQL les affiche
       supportBigNumbers: true,
       bigNumberStrings: true,
@@ -71,10 +81,12 @@ export class MysqlEngine {
     this.ds = ds
     for (let i = 1; ; i++) {
       try {
-        const c = await this.connect(false)
-        const [rows] = await c.query<mysql.RowDataPacket[]>('SELECT count(*) AS n FROM information_schema.tables WHERE table_schema = ?', [this.database])
-        await c.end()
-        if (Number(rows[0].n) === 0) await this.reset()
+        for (const db of [this.database, this.checkDb]) {
+          const c = await this.connect(null)
+          const [rows] = await c.query<mysql.RowDataPacket[]>('SELECT count(*) AS n FROM information_schema.tables WHERE table_schema = ?', [db])
+          await c.end()
+          if (Number(rows[0].n) === 0) await this.load(db)
+        }
         return
       } catch (e) {
         if (i >= attempts) throw e
@@ -83,11 +95,16 @@ export class MysqlEngine {
     }
   }
 
-  async reset() {
+  /** Remet la base du playground à l'état d'origine. */
+  reset() {
+    return this.load(this.database)
+  }
+
+  private async load(db: string) {
     if (!this.ds) throw new Error('MySQL pas encore initialisé')
-    const c = await this.connect(false)
+    const c = await this.connect(null)
     try {
-      await c.query(`DROP DATABASE IF EXISTS ${q(this.database)}; CREATE DATABASE ${q(this.database)} CHARACTER SET utf8mb4; USE ${q(this.database)}`)
+      await c.query(`DROP DATABASE IF EXISTS ${q(db)}; CREATE DATABASE ${q(db)} CHARACTER SET utf8mb4; USE ${q(db)}`)
       for (const t of this.ds.tables) {
         await c.query(mysqlDdl(t))
         for (let i = 0; i < t.rows.length; i += 2000) {
@@ -125,24 +142,29 @@ export class MysqlEngine {
       return { ok: true, ms: ms(), results }
     } catch (e) {
       const err = e as { message: string; code?: string; errno?: number }
-      const message = err.code === 'PROTOCOL_SEQUENCE_TIMEOUT' ? `Requête interrompue au bout de ${this.cfg.timeoutMs / 1000} s.` : err.message
-      return { ok: false, ms: ms(), error: { message, code: err.code } }
+      return { ok: false, ms: ms(), error: { message: this.timeoutMessage(err), code: err.code } }
     } finally {
       // Connexion jetée après chaque exécution : une transaction laissée ouverte est annulée
       c?.destroy()
     }
   }
 
-  /** Exécute sql puis check dans une transaction toujours annulée, sans limite de lignes. Refuse le DDL, qui validerait la transaction. */
+  /**
+   * Exécute sql puis check dans une transaction toujours annulée, sur la copie de correction, sans limite de lignes.
+   * Liste blanche d'instructions (le DDL, ANALYZE, LOCK… valident la transaction en MySQL) et une instruction par
+   * requête (multipleStatements coupé) : ce que le découpeur PostgreSQL lirait mal est refusé par MySQL.
+   */
   async rolledBack(sql: string, check?: string): Promise<EngineResponse> {
     const started = performance.now()
     const ms = () => Math.round(performance.now() - started)
     const statements = splitStatements(sql)
-    const ddl = statements.map((s) => firstKeyword(s.text)).find((k) => ['CREATE', 'ALTER', 'DROP', 'TRUNCATE', 'RENAME'].includes(k))
-    if (ddl) return { ok: false, ms: ms(), error: { message: `${ddl} n'est pas annulable en MySQL (validation implicite) : pas de correction automatique pour ce type d'instruction ici.` } }
+    // Commentaire conditionnel MySQL : son contenu est exécuté, mais le découpeur PostgreSQL le prend pour un commentaire
+    if (sql.includes('/*!')) return { ok: false, ms: ms(), error: { message: 'Les commentaires conditionnels /*! … */ ne sont pas acceptés dans une correction.' } }
+    const refused = statements.map((s) => firstKeyword(s.text)).find((k) => !MYSQL_CHECKABLE.has(k))
+    if (refused !== undefined) return { ok: false, ms: ms(), error: { message: `${refused || 'Cette instruction'} : seuls SELECT, WITH, INSERT, UPDATE, DELETE et REPLACE sont corrigés sur MySQL (le reste valide la transaction et ne s'annulerait pas).` } }
     let c: mysql.Connection | null = null
     try {
-      c = await this.connect()
+      c = await this.connect(this.checkDb, false)
       await c.query(`SET SESSION max_execution_time = ${this.cfg.timeoutMs}`)
       await c.query('BEGIN')
       const results: EngineResult[] = []
@@ -154,7 +176,7 @@ export class MysqlEngine {
       }
       return { ok: true, ms: ms(), results: check ? results.slice(-1) : results }
     } catch (e) {
-      return { ok: false, ms: ms(), error: { message: (e as Error).message } }
+      return { ok: false, ms: ms(), error: { message: this.timeoutMessage(e as { message: string; code?: string }) } }
     } finally {
       await c?.query('ROLLBACK').catch(() => {})
       c?.destroy()

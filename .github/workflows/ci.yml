@@ -72,4 +72,4 @@ jobs:
         working-directory: app
         env:
           DATABASE_URL: postgres://kit:kit@localhost:5432/training_sql
-          MYSQL_URL: mysql://root:kit@127.0.0.1:3306/training_sql_test
+          MYSQL_TEST_URL: mysql://root:kit@127.0.0.1:3306/training_sql_test

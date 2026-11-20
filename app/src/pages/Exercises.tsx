@@ -10,6 +10,8 @@ import { SqlEditor } from '../components/SqlEditor'
 import { Callout, PageHeader, Reveal, Sql, Tag } from '../components/ui'
 
 type Status = 'todo' | 'done'
+// Instructions annulables en MySQL (miroir de MYSQL_CHECKABLE côté serveur)
+const MYSQL_CHECKABLE = ['SELECT', 'WITH', 'INSERT', 'UPDATE', 'DELETE', 'REPLACE']
 
 function Verdict({ result }: { result: CheckResponse }) {
   if (result.ok) return <Callout tone="tip" title="Bonne réponse ✓">{result.rows} ligne(s), identiques à celles attendues.</Callout>
@@ -55,8 +57,8 @@ function ExerciseView({ ex, done, onDone, available }: { ex: Exercise; done: boo
   const run = async () => {
     const tx = transactionControl(sql)
     if (tx) return setResponse({ ok: false, ms: 0, error: { message: `Retire ${tx} : ici, tout est exécuté dans une transaction annulée.` } })
-    const ddl = engine === 'mysql' && splitStatements(sql).map((s) => firstKeyword(s.text)).find((k) => ['CREATE', 'ALTER', 'DROP', 'TRUNCATE', 'RENAME'].includes(k))
-    if (ddl) return setResponse({ ok: false, ms: 0, error: { message: `${ddl} n'est pas annulable en MySQL : utilise le playground pour l'essayer.` } })
+    const refused = engine === 'mysql' ? splitStatements(sql).map((s) => firstKeyword(s.text)).find((k) => !MYSQL_CHECKABLE.includes(k)) : undefined
+    if (refused !== undefined) return setResponse({ ok: false, ms: 0, error: { message: `${refused || 'Cette instruction'} n'est pas annulable en MySQL : ici, seuls SELECT, WITH, INSERT, UPDATE, DELETE et REPLACE. Utilise le playground pour le reste.` } })
     setBusy(true)
     // BEGIN ouvert et jamais validé : le serveur annule la transaction à la fin, la base reste intacte.
     // On retire ensuite le résultat du BEGIN et on recale la position d'erreur sur le texte de l'apprenant.
