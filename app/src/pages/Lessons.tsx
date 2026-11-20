@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { PageHeader, H2, H3, P, Callout, C, Sql, Tag } from '../components/ui'
 import { JoinGrid } from '../components/JoinGrid'
+import { useNav } from '../lib/nav'
 import { ExecOrder, SchemaDiagram, JoinViz, TruthTable, WindowViz, TimezoneViz, SafeFixSteps, DiagFlow } from '../components/viz'
 
 const lessons = [
@@ -45,6 +46,17 @@ function Tickets({ ids }: { ids: string[] }) {
 
 function Intuition({ children }: { children: ReactNode }) {
   return <p className="my-3 border-l-2 border-indigo-400 pl-4 text-lg leading-relaxed text-slate-700 italic dark:text-slate-300">{children}</p>
+}
+
+/** Différences avec les autres dialectes, avec un lien vers le comparatif complet. */
+function Elsewhere({ children }: { children: ReactNode }) {
+  const { go } = useNav()
+  return (
+    <Callout tone="tip" title="Et ailleurs ? (MySQL, SQLite…)">
+      {children}{' '}
+      <button onClick={() => go('dialectes')} className="font-medium underline underline-offset-2">Comparatif des dialectes</button>. Pour essayer, change de base dans le playground.
+    </Callout>
+  )
 }
 
 export default function Lessons() {
@@ -209,6 +221,7 @@ LIMIT 10;`}
             <C>count(*)</C> avant et après la jointure.
           </Callout>
           <Tickets ids={['T04', 'T10', 'T02']} />
+          <Elsewhere><C>FULL JOIN</C> n'existe pas en MySQL : on l'obtient avec l'<C>UNION</C> d'un <C>LEFT JOIN</C> et d'un <C>RIGHT JOIN</C>. SQLite le gère depuis la version 3.39.</Elsewhere>
         </Lesson>
 
         {/* 4 ---------------------------------------------------------- */}
@@ -248,6 +261,7 @@ WHERE NOT EXISTS (SELECT 1 FROM lignes_ticket l WHERE l.produit_id = p.id);`}
             <C>coalesce(…, 0)</C> dans un rapport.
           </Callout>
           <Tickets ids={['T02', 'T15', 'T11']} />
+          <Elsewhere>La logique à 3 valeurs est la même partout, mais pas les fonctions : <C>a || NULL</C> vaut NULL en PostgreSQL et SQLite, alors que <C>CONCAT('a', NULL)</C> vaut NULL en MySQL. En tri croissant, les NULL arrivent à la fin en PostgreSQL, au début en MySQL et SQLite. Sous Oracle, la chaîne vide <C>''</C> est NULL.</Elsewhere>
         </Lesson>
 
         {/* 5 ---------------------------------------------------------- */}
@@ -294,6 +308,7 @@ ORDER BY qte DESC;`}
             GROUP BY (et accepte la nouvelle granularité) ou agrège-la. Exception utile : grouper par la clé primaire autorise les autres colonnes de la même table.
           </Callout>
           <Tickets ids={['T01', 'T08', 'T14']} />
+          <Elsewhere><C>string_agg</C> s'écrit <C>GROUP_CONCAT(x ORDER BY x SEPARATOR ', ')</C> en MySQL et <C>group_concat(x, ', ')</C> en SQLite. <C>count(*) FILTER (WHERE …)</C> existe en SQLite mais pas en MySQL : on écrit <C>sum(condition)</C> ou <C>count(CASE WHEN … THEN 1 END)</C>, qui marche partout.</Elsewhere>
         </Lesson>
 
         {/* 6 ---------------------------------------------------------- */}
@@ -345,6 +360,7 @@ CROSS JOIN LATERAL (
             dupliquent jamais, alors qu'un <C>JOIN</C> peut le faire.
           </Callout>
           <Tickets ids={['T07', 'T11', 'T12']} />
+          <Elsewhere><C>WITH</C> et <C>WITH RECURSIVE</C> marchent tels quels en MySQL 8 et SQLite. <C>DISTINCT ON</C> est propre à PostgreSQL : ailleurs, <C>row_number() OVER (…) = 1</C> dans une sous-requête.</Elsewhere>
         </Lesson>
 
         {/* 7 ---------------------------------------------------------- */}
@@ -405,6 +421,7 @@ ORDER BY flux, magasin_id, debut DESC;`}
             qui choisit la ligne gardée.
           </Callout>
           <Tickets ids={['T08', 'T14', 'T11']} />
+          <Elsewhere>Les fonctions de fenêtre sont standard : MySQL les gère depuis la version 8.0, SQLite depuis la 3.25. Les mêmes requêtes tournent sur les trois bases du playground.</Elsewhere>
         </Lesson>
 
         {/* 8 ---------------------------------------------------------- */}
@@ -444,6 +461,7 @@ ORDER BY d;`}
             Et <C>date_ticket::date</C> dépend du fuseau de session : sois explicite avec <C>AT TIME ZONE 'Europe/Paris'</C>.
           </Callout>
           <Tickets ids={['T03', 'T09']} />
+          <Elsewhere>C'est là que les dialectes divergent le plus. SQLite n'a pas de type date : les dates sont du texte ISO (<C>date(d, '+7 days')</C>, <C>strftime</C>). MySQL n'a pas de fuseau dans <C>DATETIME</C> et écrit <C>DATE_ADD(d, INTERVAL 7 DAY)</C>, <C>DATEDIFF(d2, d1)</C>. Dans le playground, les horodatages sont copiés en heure de Paris.</Elsewhere>
         </Lesson>
 
         {/* 9 ---------------------------------------------------------- */}
@@ -477,6 +495,7 @@ ROLLBACK;                                     -- 4. rien n'est modifié`}
             l'exécute en production.
           </Callout>
           <Tickets ids={['T05', 'T12']} />
+          <Elsewhere>Sous MySQL, <C>CREATE</C>, <C>ALTER</C> et <C>DROP</C> valident la transaction en cours : un <C>ROLLBACK</C> ne les annule pas. L'upsert s'écrit <C>ON DUPLICATE KEY UPDATE</C> en MySQL et <C>ON CONFLICT … DO UPDATE</C> en SQLite, comme en PostgreSQL.</Elsewhere>
         </Lesson>
 
         {/* 10 --------------------------------------------------------- */}
@@ -536,6 +555,7 @@ ORDER BY duree DESC;`}
             pas un index soi-même : on transmet le plan avant/après à l'équipe technique (qui utilisera <C>CREATE INDEX CONCURRENTLY</C>).
           </Callout>
           <Tickets ids={['T13']} />
+          <Elsewhere>Chaque moteur a son plan : <C>EXPLAIN QUERY PLAN</C> en SQLite (« SCAN » = parcours complet, « SEARCH … USING INDEX » = index), <C>EXPLAIN ANALYZE</C> en MySQL. Le bouton « Expliquer » du playground utilise la bonne forme selon la base choisie.</Elsewhere>
         </Lesson>
 
         {/* 11 --------------------------------------------------------- */}
