@@ -49,5 +49,5 @@ export type CheckResponse =
   | { ok: false; reason: string; missing: string[][]; extra: string[][]; expectedFields: string[] }
   | { ok: false; reason: string; error: true }
 
-export const checkAnswer = (id: string, sql: string): Promise<CheckResponse> =>
-  fetch('/api/check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, sql }) }).then((r) => r.json())
+export const checkAnswer = (id: string, sql: string, engine: Engine = 'pg'): Promise<CheckResponse> =>
+  fetch('/api/check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, sql, engine }) }).then((r) => r.json())

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { exercises, levels, type Exercise, type Level } from '../content/exercises'
-import { checkAnswer, fetchSchema, runSql, type CheckResponse, type QueryResponse } from '../lib/api'
-import { transactionControl } from '../lib/statements'
+import { exercises, levels, solutionFor, type Exercise, type Level } from '../content/exercises'
+import { checkAnswer, engineNames, fetchEngines, fetchSchema, runSql, type CheckResponse, type Engine, type QueryResponse } from '../lib/api'
+import { firstKeyword, splitStatements, transactionControl } from '../lib/statements'
 import { useStored } from '../lib/storage'
 import { useNav } from '../lib/nav'
 import { Markdown } from '../components/Markdown'
@@ -27,11 +27,15 @@ function Verdict({ result }: { result: CheckResponse }) {
   )
 }
 
-function ExerciseView({ ex, done, onDone }: { ex: Exercise; done: boolean; onDone: () => void }) {
+function ExerciseView({ ex, done, onDone, available }: { ex: Exercise; done: boolean; onDone: () => void; available: Engine[] }) {
   const { openInPlayground } = useNav()
+  const [preferred, setPreferred] = useStored<Engine>('exercices:engine', 'pg')
+  const engines = available.filter((e) => solutionFor(ex, e))
+  const engine: Engine = engines.includes(preferred) ? preferred : 'pg'
   const [answers, setAnswers] = useStored<Record<string, string>>('exercices:answers', {})
-  const sql = answers[ex.id] ?? ex.starter ?? ''
-  const setSql = (v: string) => setAnswers((a) => ({ ...a, [ex.id]: v }))
+  const key = engine === 'pg' ? ex.id : `${ex.id}:${engine}`
+  const sql = answers[key] ?? ex.starter ?? ''
+  const setSql = (v: string) => setAnswers((a) => ({ ...a, [key]: v }))
   const [schema, setSchema] = useState<Record<string, string[]>>({})
   const [response, setResponse] = useState<QueryResponse | null>(null)
   const [verdict, setVerdict] = useState<CheckResponse | null>(null)
@@ -39,23 +43,25 @@ function ExerciseView({ ex, done, onDone }: { ex: Exercise; done: boolean; onDon
   const [hints, setHints] = useState(0)
 
   useEffect(() => {
-    fetchSchema()
+    fetchSchema(engine)
       .then((cols) => {
         const map: Record<string, string[]> = {}
         for (const c of cols) (map[c.table_name] ??= []).push(c.column_name)
         setSchema(map)
       })
       .catch(() => {})
-  }, [])
+  }, [engine])
 
   const run = async () => {
     const tx = transactionControl(sql)
     if (tx) return setResponse({ ok: false, ms: 0, error: { message: `Retire ${tx} : ici, tout est exécuté dans une transaction annulée.` } })
+    const ddl = engine === 'mysql' && splitStatements(sql).map((s) => firstKeyword(s.text)).find((k) => ['CREATE', 'ALTER', 'DROP', 'TRUNCATE', 'RENAME'].includes(k))
+    if (ddl) return setResponse({ ok: false, ms: 0, error: { message: `${ddl} n'est pas annulable en MySQL : utilise le playground pour l'essayer.` } })
     setBusy(true)
     // BEGIN ouvert et jamais validé : le serveur annule la transaction à la fin, la base reste intacte.
     // On retire ensuite le résultat du BEGIN et on recale la position d'erreur sur le texte de l'apprenant.
     const prefix = 'BEGIN; '
-    const r: QueryResponse = await runSql(prefix + sql).catch((e) => ({ ok: false as const, ms: 0, error: { message: String(e) } }))
+    const r: QueryResponse = await runSql(prefix + sql, engine).catch((e) => ({ ok: false as const, ms: 0, error: { message: String(e) } }))
     if (r.ok) r.results = r.results.slice(1)
     else if (r.error.position) r.error.position = String(Number(r.error.position) - prefix.length)
     setResponse(r)
@@ -64,7 +70,7 @@ function ExerciseView({ ex, done, onDone }: { ex: Exercise; done: boolean; onDon
 
   const check = async () => {
     setBusy(true)
-    const r = await checkAnswer(ex.id, sql).catch((e) => ({ ok: false as const, reason: String(e), error: true as const }))
+    const r = await checkAnswer(ex.id, sql, engine).catch((e) => ({ ok: false as const, reason: String(e), error: true as const }))
     setVerdict(r)
     if (r.ok && !done) onDone()
     setBusy(false)
@@ -80,6 +86,22 @@ function ExerciseView({ ex, done, onDone }: { ex: Exercise; done: boolean; onDon
       </div>
       <h2 className="mt-2 text-2xl font-bold text-slate-900 dark:text-white">{ex.title}</h2>
       <div className="mt-2"><Markdown source={ex.prompt} /></div>
+
+      {available.length > 1 && engines.length === 1 && (
+        <p className="mt-4 text-xs text-slate-500">Corrigé sur PostgreSQL uniquement : la solution dépend de fonctions ou de catalogues propres à PostgreSQL.</p>
+      )}
+      {engines.length > 1 && (
+        <div className="mt-4 flex flex-wrap items-center gap-2 text-sm" role="radiogroup" aria-label="Base de données">
+          <span className="text-slate-500">Corriger sur :</span>
+          {engines.map((e) => (
+            <button key={e} role="radio" aria-checked={engine === e} onClick={() => { setPreferred(e); setVerdict(null); setResponse(null) }}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold ${engine === e ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800'}`}>
+              {engineNames[e]}
+            </button>
+          ))}
+          {engine !== 'pg' && <span className="text-xs text-slate-500">L'énoncé et les indices visent PostgreSQL : adapte la syntaxe (dates, fonctions) à {engineNames[engine]}.</span>}
+        </div>
+      )}
 
       <div className="mt-6 overflow-hidden rounded-xl border border-slate-300 bg-slate-900 shadow-sm dark:border-slate-700">
         <SqlEditor value={sql} onChange={setSql} schema={schema} onRun={run} onRunCurrent={run} onToggleSchema={() => {}} onSave={() => {}} onFormat={() => {}} />
@@ -110,8 +132,8 @@ function ExerciseView({ ex, done, onDone }: { ex: Exercise; done: boolean; onDon
 
       <div className="mt-8">
         <Reveal label="Voir la solution (après avoir cherché !)" tone="emerald">
-          <Sql code={ex.solution} run={false} />
-          <button onClick={() => openInPlayground(ex.solution)} className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500">Ouvrir dans le playground</button>
+          <Sql code={solutionFor(ex, engine) ?? ex.solution} run={false} />
+          <button onClick={() => openInPlayground(solutionFor(ex, engine) ?? ex.solution)} className="rounded-md bg-emerald-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-emerald-500">Ouvrir dans le playground</button>
         </Reveal>
       </div>
     </article>
@@ -124,6 +146,10 @@ export default function Exercises() {
   const ex = exercises.find((e) => e.id === current) ?? exercises[0]
   const byLevel = useMemo(() => ([1, 2, 3] as Level[]).map((l) => [l, exercises.filter((e) => e.level === l)] as const), [])
   const doneCount = exercises.filter((e) => status[e.id] === 'done').length
+  const [available, setAvailable] = useState<Engine[]>(['pg'])
+  useEffect(() => {
+    fetchEngines().then(setAvailable).catch(() => {})
+  }, [])
 
   return (
     <>
@@ -150,7 +176,7 @@ export default function Exercises() {
             </div>
           ))}
         </nav>
-        <ExerciseView key={ex.id} ex={ex} done={status[ex.id] === 'done'} onDone={() => setStatus((s) => ({ ...s, [ex.id]: 'done' }))} />
+        <ExerciseView key={ex.id} ex={ex} available={available} done={status[ex.id] === 'done'} onDone={() => setStatus((s) => ({ ...s, [ex.id]: 'done' }))} />
       </div>
     </>
   )

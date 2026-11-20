@@ -11,7 +11,7 @@
     "preview": "vite preview",
     "lint": "oxlint src server",
     "test": "tsx --test src/lib/*.test.ts",
-    "test:db": "tsx --test server/*.dbtest.ts"
+    "test:db": "tsx --test --test-concurrency=1 server/*.dbtest.ts"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.4",

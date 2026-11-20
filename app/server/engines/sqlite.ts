@@ -68,10 +68,22 @@ export class SqliteEngine {
   }
 
   query(sql: string): Promise<EngineResponse> {
+    return this.run(splitStatements(sql).map((s) => ({ text: s.text, from: s.from, keyword: firstKeyword(s.text) })), this.maxRows)
+  }
+
+  /** Exécute sql puis check dans une transaction toujours annulée (le worker annule toute transaction ouverte), sans limite de lignes. */
+  async rolledBack(sql: string, check?: string): Promise<EngineResponse> {
+    const list = [{ text: 'BEGIN', from: 0, keyword: 'BEGIN' }, ...splitStatements(sql).map((s) => ({ text: s.text, from: s.from, keyword: firstKeyword(s.text) }))]
+    if (check) list.push({ text: check, from: 0, keyword: 'SELECT' })
+    const r = await this.run(list, Number.MAX_SAFE_INTEGER)
+    if (r.ok) r.results = check ? r.results.slice(-1) : r.results.slice(1)
+    return r
+  }
+
+  private run(statements: { text: string; from: number; keyword: string }[], maxRows: number): Promise<EngineResponse> {
     const started = performance.now()
-    const statements = splitStatements(sql).map((s) => ({ text: s.text, from: s.from, keyword: firstKeyword(s.text) }))
     return new Promise((resolve) => {
-      const worker = new Worker(new URL('./sqlite-worker.mjs', import.meta.url), { workerData: { file: this.file, statements, maxRows: this.maxRows } })
+      const worker = new Worker(new URL('./sqlite-worker.mjs', import.meta.url), { workerData: { file: this.file, statements, maxRows } })
       const done = (r: Omit<EngineResponse, 'ms'>) => {
         clearTimeout(timer)
         resolve({ ...r, ms: Math.round(performance.now() - started) } as EngineResponse)

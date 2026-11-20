@@ -133,6 +133,34 @@ export class MysqlEngine {
     }
   }
 
+  /** Exécute sql puis check dans une transaction toujours annulée, sans limite de lignes. Refuse le DDL, qui validerait la transaction. */
+  async rolledBack(sql: string, check?: string): Promise<EngineResponse> {
+    const started = performance.now()
+    const ms = () => Math.round(performance.now() - started)
+    const statements = splitStatements(sql)
+    const ddl = statements.map((s) => firstKeyword(s.text)).find((k) => ['CREATE', 'ALTER', 'DROP', 'TRUNCATE', 'RENAME'].includes(k))
+    if (ddl) return { ok: false, ms: ms(), error: { message: `${ddl} n'est pas annulable en MySQL (validation implicite) : pas de correction automatique pour ce type d'instruction ici.` } }
+    let c: mysql.Connection | null = null
+    try {
+      c = await this.connect()
+      await c.query(`SET SESSION max_execution_time = ${this.cfg.timeoutMs}`)
+      await c.query('BEGIN')
+      const results: EngineResult[] = []
+      for (const s of [...statements.map((x) => x.text), ...(check ? [check] : [])]) {
+        const [raw, fields] = await c.query({ sql: s, rowsAsArray: true, timeout: this.cfg.timeoutMs })
+        const keyword = firstKeyword(s) || 'SELECT'
+        if (Array.isArray(raw)) results.push({ command: keyword, rowCount: raw.length, fields: (fields as mysql.FieldPacket[]).map((f) => f.name), rows: raw as unknown[][], truncated: false })
+        else results.push({ command: keyword, rowCount: (raw as mysql.ResultSetHeader).affectedRows ?? null, fields: [], rows: [], truncated: false })
+      }
+      return { ok: true, ms: ms(), results: check ? results.slice(-1) : results }
+    } catch (e) {
+      return { ok: false, ms: ms(), error: { message: (e as Error).message } }
+    } finally {
+      await c?.query('ROLLBACK').catch(() => {})
+      c?.destroy()
+    }
+  }
+
   async schema(): Promise<SchemaRow[]> {
     const c = await this.connect()
     try {

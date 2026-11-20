@@ -2,7 +2,7 @@ import express from 'express'
 import pg from 'pg'
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { checkExercise } from './check'
+import { checkExercise, lastGrid, pgRunner } from './check'
 import { getDataset } from './engines/dataset'
 import { SqliteEngine } from './engines/sqlite'
 import { MysqlEngine } from './engines/mysql'
@@ -171,9 +171,19 @@ app.post('/api/query', async (req, res) => {
 app.post('/api/check', async (req, res) => {
   const ex = exercises.find((e) => e.id === req.body?.id)
   if (!ex) return res.status(404).json({ error: 'exercice inconnu' })
+  const engine = engineOf(req.body?.engine)
+  const sql = stripMeta(req.body?.sql)
+  if (engine === 'sqlite' || engine === 'mysql') {
+    const db = engine === 'sqlite' ? sqlite : mysqlDb!
+    try {
+      return res.json(await checkExercise(async (s, c) => lastGrid(await db.rolledBack(s, c)), ex, sql, engine))
+    } catch (e) {
+      return res.status(500).json({ ok: false, error: true, reason: (e as Error).message })
+    }
+  }
   const client = await pool.connect()
   try {
-    res.json(await checkExercise(client, ex, stripMeta(req.body?.sql)))
+    res.json(await checkExercise(pgRunner(client), ex, sql))
   } catch (e) {
     res.status(500).json({ ok: false, error: true, reason: (e as Error).message })
   } finally {

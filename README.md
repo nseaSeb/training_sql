@@ -4,7 +4,7 @@
 
 Mini-site React pour s'entraîner au SQL sur une vraie base PostgreSQL :
 
-- **Exercices corrigés automatiquement** (débutant → avancé) : ta requête et la solution sont exécutées sur la base, chacune dans une transaction annulée, puis leurs résultats sont comparés. Les exercices d'écriture (`UPDATE`, `CREATE TABLE`, vues, index…) sont corrigés par une requête de contrôle.
+- **Exercices corrigés automatiquement** (débutant → avancé) : ta requête et la solution sont exécutées sur la base, chacune dans une transaction annulée, puis leurs résultats sont comparés. Les exercices d'écriture (`UPDATE`, `CREATE TABLE`, vues, index…) sont corrigés par une requête de contrôle. La plupart sont aussi corrigés sur SQLite et MySQL, avec une solution écrite pour chaque base.
 - **Cours visuels**, méthode, lexique et cheatsheet (avec les équivalences SQL Server).
 - **Dialectes** : le même besoin en PostgreSQL, MySQL, SQL Server, Oracle, SQLite et Informix (pagination, dates, texte, NULL, upsert…).
 - **Tickets d'incidents** réalistes avec indices et solutions commentées.
@@ -90,7 +90,7 @@ npm run test:db          # exercices et moteurs contre les bases (docker compose
 
 ## Ajouter un exercice
 
-Les exercices sont dans `app/src/content/exercises.ts`. Chacun a un énoncé, une solution et, pour un exercice d'écriture, une requête `check` relue après la réponse. L'énoncé doit donner les colonnes attendues dans l'ordre : la comparaison se fait par position. `npm run test:db` vérifie que la solution passe et qu'une réponse vide ou « ne rien faire » échoue.
+Les exercices sont dans `app/src/content/exercises.ts`. Chacun a un énoncé, une solution et, pour un exercice d'écriture, une requête `check` relue après la réponse. L'énoncé doit donner les colonnes attendues dans l'ordre : la comparaison se fait par position. Pour le corriger aussi sur SQLite ou MySQL, ajouter `engines: { sqlite: true, mysql: '…' }` (`true` = même solution, sinon la solution pour cette base ; pas de DDL pour MySQL, qui n'est pas annulable). `npm run test:db` vérifie, pour chaque base, que la solution passe et qu'une réponse vide ou « ne rien faire » échoue.
 
 ## Licence
 
