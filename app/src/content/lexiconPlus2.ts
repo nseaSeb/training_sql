@@ -486,7 +486,7 @@ export const plus2: Record<string, Plus> = {
       "Colonnes utiles : calls, total_exec_time et mean_exec_time (en ms), rows, shared_blks_hit / shared_blks_read (cache contre disque). Avant PostgreSQL 13 : total_time et mean_time.",
       "Les compteurs s'accumulent depuis la dernière remise à zéro : `SELECT pg_stat_statements_reset();` avant de mesurer une période précise.",
       "Sans le rôle pg_read_all_stats, on ne voit le texte que de ses propres requêtes (les autres affichent <insufficient privilege>).",
-      "Sur Dokku (plugin postgres) : régler shared_preload_libraries dans la configuration du service, redémarrer le service, puis CREATE EXTENSION en superutilisateur.",
+      "Sur un service géré : régler shared_preload_libraries dans la configuration du serveur, redémarrer, puis CREATE EXTENSION en superutilisateur.",
     ],
   },
   'Version du serveur': {

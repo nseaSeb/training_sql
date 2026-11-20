@@ -1,6 +1,6 @@
 import ticketsMd from '../../../kit/02_tickets.md?raw'
 import solutionsSql from '../../../kit/03_solutions.sql?raw'
-import memoMd from '../../../kit/04_memo_postgres_n2.md?raw'
+import memoMd from '../../../kit/04_memo_postgres.md?raw'
 
 export type KitTicket = { id: string; title: string; level: string; body: string; solution: string }
 

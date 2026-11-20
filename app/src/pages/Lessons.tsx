@@ -14,7 +14,7 @@ const lessons = [
   { id: 'l-dates', title: 'Dates et fuseaux' },
   { id: 'l-corriger', title: 'Corriger sans risque' },
   { id: 'l-perf', title: 'Performance et EXPLAIN' },
-  { id: 'l-methode', title: 'Méthode de diagnostic N2' },
+  { id: 'l-methode', title: 'Méthode de diagnostic' },
 ]
 
 function Lesson({ n, id, children }: { n: number; id: string; children: ReactNode }) {
@@ -472,7 +472,7 @@ ROLLBACK;                                     -- 4. rien n'est modifié`}
             Un <C>UPDATE</C> sans <C>WHERE</C> modifie toute la table. Écris toujours d'abord le <C>SELECT</C> avec le même WHERE, puis transforme-le en UPDATE. En
             production : sauvegarde des lignes touchées, validation écrite du demandeur, et trace de ce qui a été fait.
           </Callout>
-          <Callout tone="info" title="Au support N2">
+          <Callout tone="info" title="Au support applicatif">
             Tu prépares et testes le script, tu le fais relire, et tu documentes : demande, requête, nombre de lignes, contrôle. Souvent, c'est l'équipe technique qui
             l'exécute en production.
           </Callout>

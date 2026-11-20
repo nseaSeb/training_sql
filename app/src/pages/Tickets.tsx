@@ -28,7 +28,7 @@ export default function Tickets() {
 
   return (
     <>
-      <PageHeader title="Tickets d'entraînement" subtitle="15 incidents réalistes de support N2 retail sur la base training_sql. Diagnostic → cause → réponse à l'utilisateur.">
+      <PageHeader title="Tickets d'entraînement" subtitle={`${kitTickets.length} incidents réalistes de support applicatif retail sur la base training_sql. Diagnostic → cause → réponse à l'utilisateur.`}>
         <div className="mt-4 flex items-center gap-3">
           <div className="h-2 w-64 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
             <div className="h-full bg-emerald-500 transition-all" style={{ width: `${(done / kitTickets.length) * 100}%` }} />

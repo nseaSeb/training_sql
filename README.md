@@ -1,24 +1,32 @@
 # Training SQL · PostgreSQL
 
+[![CI](https://github.com/nseaSeb/training_sql/actions/workflows/ci.yml/badge.svg)](https://github.com/nseaSeb/training_sql/actions/workflows/ci.yml)
+
 Mini-site React pour s'entraîner au SQL sur une vraie base PostgreSQL : méthode, cours visuels, lexique, cheatsheet (avec les équivalences SQL Server), tickets d'incidents réalistes, playground en direct et auto-évaluation.
 
 Le jeu de données (schéma `retail` : magasins, produits, tickets de caisse, stocks, flux d'import…) est dans `kit/`.
+
+![Accueil](docs/screenshots/accueil.png)
+
+| Cours | Tickets | Playground |
+|---|---|---|
+| ![Cours](docs/screenshots/cours.png) | ![Tickets](docs/screenshots/tickets.png) | ![Playground](docs/screenshots/playground.png) |
 
 ## Démarrer
 
 Prérequis : Docker et Node.js 24.
 
 ```bash
-docker compose up -d          # Postgres 16 sur le port 55432 (base training_sql, schéma retail)
+docker compose up -d          # Postgres 16 sur le port 55433 (base training_sql, schéma retail)
 cd app && npm install
-npm run dev                   # API sur :3380 + site sur http://localhost:47101
+npm run dev                   # API sur :3381 + site sur http://localhost:47115
 ```
 
 | Service | Adresse |
 |---|---|
-| Site | http://localhost:47101 |
-| API (Express + pg) | http://localhost:3380 |
-| Postgres | `postgres://kit:kit@localhost:55432/training_sql` |
+| Site | http://localhost:47115 |
+| API (Express + pg) | http://localhost:3381 |
+| Postgres | `postgres://kit:kit@localhost:55433/training_sql` |
 
 Se connecter en ligne de commande : `docker exec -it training_sql_pg psql -U kit -d training_sql`
 (le `search_path` est déjà sur `retail` et le fuseau sur `Europe/Paris`).
@@ -48,3 +56,7 @@ Le `Dockerfile` construit le site et le sert avec l'API sur `$PORT`. Variables d
 ```bash
 cd app && npm test
 ```
+
+## Licence
+
+[MIT](LICENSE)

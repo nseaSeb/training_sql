@@ -29,7 +29,7 @@ export const extra: Entry[] = [
   },
   {
     name: 'Bonnes pratiques de correction', cat: 'Filet de sécurité',
-    def: "Les règles qui évitent l'incident causé par le support lui-même. À citer en entretien : elles montrent qu'on est fiable avec un accès en écriture.",
+    def: "Les règles qui évitent l'incident causé par le support lui-même. Elles montrent qu'on est fiable avec un accès en écriture.",
     syntax: 'Lire → compter → sauvegarder → BEGIN → modifier → contrôler → faire valider → COMMIT → tracer',
     example: `-- Le squelette complet, à copier pour chaque correction\nCREATE TEMP TABLE sauv AS SELECT * FROM produits WHERE id > 400;   -- 1. sauvegarde\nSELECT count(*) AS a_modifier FROM sauv;                            -- 2. compter\nBEGIN;                                                              -- 3. transaction\nUPDATE produits SET actif = false WHERE id > 400 RETURNING id, actif;  -- 4. n lignes = compte ?\nSELECT id, actif FROM produits WHERE id > 400;                      -- 5. contrôle\nROLLBACK;                                                           -- 6. COMMIT après validation`,
     voir: ['Sauvegarde ciblée', 'Garde-fous de session', 'BEGIN / COMMIT / ROLLBACK'], lesson: 'l-corriger',
@@ -126,7 +126,7 @@ export const plus3: Record<string, Plus> = {
       "Choisir le moment : éviter les heures de pointe et les fenêtres de batch (la nuit, les imports tournent : voir imports_log), prévenir si l'impact est visible pour les utilisateurs.",
       "Après : contrôle métier (l'utilisateur confirme que c'est bon), trace dans le ticket (requêtes exécutées, nombre de lignes, heure), fiche dans la base de connaissances si le cas peut revenir, et remontée de la cause racine à l'équipe technique (contrainte manquante, bug).",
       "Le principe des 4 yeux : pour une correction importante, faire relire le script par un collègue avant le COMMIT.",
-      "Phrase d'entretien : « Je ne modifie jamais de données en production sans sauvegarde des lignes, transaction, contrôle du nombre de lignes et validation du demandeur. »",
+      "Règle à appliquer : « Je ne modifie jamais de données en production sans sauvegarde des lignes, transaction, contrôle du nombre de lignes et validation du demandeur. »",
     ],
   },
   'Sauvegarde ciblée': {

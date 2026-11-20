@@ -32,7 +32,7 @@ export default function Cheatsheet() {
 
   return (
     <>
-      <PageHeader title="Cheatsheet" subtitle="Les patterns qui reviennent en support N2. Tous exécutables sur training_sql.">
+      <PageHeader title="Cheatsheet" subtitle="Les patterns qui reviennent au support applicatif. Tous exécutables sur training_sql.">
         <input
           autoFocus
           value={q}
@@ -113,7 +113,7 @@ export default function Cheatsheet() {
       </div>
 
       <div className="mt-12">
-        <Reveal label="Mémo PostgreSQL N2 complet (fichier du kit)">
+        <Reveal label="Mémo PostgreSQL complet (fichier du kit)">
           <Markdown source={memoMd} />
         </Reveal>
       </div>

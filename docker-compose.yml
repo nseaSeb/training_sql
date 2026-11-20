@@ -1,5 +1,5 @@
 name: training_sql
-# Postgres isolé pour le kit d'entraînement (port 55432)
+# Postgres isolé pour le kit d'entraînement (port 55433)
 services:
   training_sql_pg:
     image: postgres:16
@@ -11,7 +11,7 @@ services:
       TZ: Europe/Paris
       PGTZ: Europe/Paris
     ports:
-      - "55432:5432"
+      - "55433:5432"
     volumes:
       - training_sql_data:/var/lib/postgresql/data
       - ./kit/01_setup_base.sql:/docker-entrypoint-initdb.d/01_setup_base.sql:ro

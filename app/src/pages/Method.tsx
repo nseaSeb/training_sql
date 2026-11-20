@@ -23,7 +23,7 @@ export default function Method() {
       <Callout tone="tip" title="Le mindset anti-panique">
         Personne n'écrit une auto-jointure avec chevauchement de périodes d'un seul jet, même avec 10 ans d'expérience. Les gens qui ont l'air rapides font exactement ce qui suit, simplement plus vite et dans leur tête.
         Face à une question qui paraît difficile, l'objectif n'est pas « trouver la requête », c'est <strong>« écrire la prochaine petite requête qui m'apprend quelque chose »</strong>. Chaque étape exécutée est un progrès visible, et le stress baisse dès qu'on a un premier résultat à l'écran.
-        En entretien ou face à un utilisateur, penser à voix haute (« je regarde d'abord la table, puis je compte… ») est une force : ça montre la méthode, qui compte plus que la vitesse.
+        Face à un utilisateur ou à un collègue, penser à voix haute (« je regarde d'abord la table, puis je compte… ») est une force : ça montre la méthode, qui compte plus que la vitesse.
       </Callout>
 
       <H2 id="routine">La routine en 7 étapes</H2>

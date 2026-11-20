@@ -1,5 +1,5 @@
 -- =====================================================================
---  Kit d'entraînement SQL — support N2 progiciel retail
+--  Kit d'entraînement SQL — support applicatif retail
 --  Base fictive « hypermarchés » : magasins, produits, caisses, stocks,
 --  promos, fidélité, flux d'import. Des anomalies sont cachées dedans :
 --  ce sont elles que les tickets (02_tickets.md) te font trouver.

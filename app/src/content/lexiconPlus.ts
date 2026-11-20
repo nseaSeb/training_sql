@@ -210,7 +210,7 @@ const plus1: Record<string, Plus> = {
   'WITH (CTE)': {
     text: [
       "Une CTE se lit comme une recette en étapes : chaque étape porte un nom et peut utiliser les précédentes. On peut tester chaque étape seule en remplaçant le SELECT final par `SELECT * FROM etape`.",
-      "C'est la meilleure façon d'aborder une requête complexe en entretien ou en incident : écrire étape 1, vérifier ; étape 2, vérifier… plutôt qu'une grosse requête d'un coup.",
+      "C'est la meilleure façon d'aborder une requête complexe en incident : écrire étape 1, vérifier ; étape 2, vérifier… plutôt qu'une grosse requête d'un coup.",
       "Une CTE n'existe que pendant la requête. Pour garder un résultat intermédiaire plus longtemps : `CREATE TEMP TABLE`.",
     ],
   },

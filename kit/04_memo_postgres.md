@@ -1,4 +1,4 @@
-# Mémo PostgreSQL — support N2
+# Mémo PostgreSQL — support applicatif
 
 ## Méthode sur un ticket « bug de requête »
 

@@ -1,4 +1,4 @@
-# Tickets d'entraînement — support N2 progiciel retail
+# Tickets d'entraînement — support applicatif retail
 
 Base : schéma `retail` créé par `01_setup_base.sql` (PostgreSQL 12+).
 Dans psql : `SET search_path = retail;` puis `\dt` et `\d nom_table` pour découvrir les tables.

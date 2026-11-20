@@ -386,7 +386,7 @@ GROUP BY lower(nom), lower(prenom)
 HAVING count(*) > 1 AND max(cree_le) >= '2026-09-01'
 ORDER BY 1, 2;
 -- Résultat : 7 cartes « Leroy Philippe ». Sur nom/prénom seuls on ne peut pas
--- trancher (homonymes). Réponse N2 réaliste : signaler le cas au service
+-- trancher (homonymes). Réponse réaliste : signaler le cas au service
 -- fidélité avec la liste des candidats ; la fusion se décide sur un critère
 -- fiable (téléphone, adresse, date de naissance), pas par la requête.
 -- Pour aller plus loin : unaccent() + comparaison nom/prénom pour les
@@ -471,7 +471,7 @@ ORDER BY t.date_ticket DESC
 LIMIT 50;
 ROLLBACK;
 -- Après : « Bitmap Index Scan on idx_lignes_produit », moins de buffers lus.
--- Au support N2, on ne crée pas l'index en prod soi-même : on remonte le plan
+-- Au support, on ne crée pas l'index en prod soi-même : on remonte le plan
 -- avant/après à l'équipe technique. En prod l'index se crée avec
 -- CREATE INDEX CONCURRENTLY (pas de verrou bloquant en écriture).
 -- Autres pistes à regarder dans un vrai cas : pg_stat_statements (requêtes

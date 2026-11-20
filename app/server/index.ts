@@ -9,11 +9,11 @@ for (const oid of [1082, 1114, 1184, 1186]) pg.types.setTypeParser(oid, (v) => v
 // numeric et bigint en texte : pas de perte de précision
 for (const oid of [20, 1700]) pg.types.setTypeParser(oid, (v) => v)
 
-const PORT = Number(process.env.PORT ?? process.env.API_PORT ?? 3380)
+const PORT = Number(process.env.PORT ?? process.env.API_PORT ?? 3381)
 const MAX_ROWS = 1000
 const SETUP_SQL = fileURLToPath(new URL('../../kit/01_setup_base.sql', import.meta.url))
 
-const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://kit:kit@localhost:55432/training_sql'
+const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://kit:kit@localhost:55433/training_sql'
 // En ligne (KIT_APP_PASSWORD défini) : l'API ne se connecte jamais en superutilisateur,
 // mais avec un rôle restreint propriétaire du seul schéma retail.
 const APP_ROLE = 'kit_app'

@@ -15,7 +15,7 @@ const themes: Theme[] = [
   { id: 'dates', label: 'Dates et fuseaux', lesson: 'l-dates' },
   { id: 'corriger', label: 'Corriger sans risque', lesson: 'l-corriger' },
   { id: 'perf', label: 'Performance', lesson: 'l-perf' },
-  { id: 'methode', label: 'Méthode N2', lesson: 'l-methode' },
+  { id: 'methode', label: 'Méthode', lesson: 'l-methode' },
   { id: 'json', label: 'JSON', lesson: '' },
 ]
 
