@@ -3,6 +3,9 @@ import pg from 'pg'
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { checkExercise } from './check'
+import { getDataset } from './engines/dataset'
+import { SqliteEngine } from './engines/sqlite'
+import type { EngineId } from './engines/types'
 import { exercises } from '../src/content/exercises'
 
 // Dates, timestamps et intervalles renvoyés tels que Postgres les affiche
@@ -14,6 +17,9 @@ for (const oid of [20, 1700]) pg.types.setTypeParser(oid, (v) => v)
 const PORT = Number(process.env.PORT ?? process.env.API_PORT ?? 3381)
 const MAX_ROWS = 1000
 const SETUP_SQL = fileURLToPath(new URL('../../kit/01_setup_base.sql', import.meta.url))
+const DATA_DIR = process.env.DATA_DIR ?? fileURLToPath(new URL('../.data', import.meta.url))
+const sqlite = new SqliteEngine(DATA_DIR, MAX_ROWS, 15000)
+const engineOf = (v: unknown): EngineId => (v === 'sqlite' || v === 'mysql' ? v : 'pg')
 
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://kit:kit@localhost:55433/training_sql'
 // En ligne (KIT_APP_PASSWORD défini) : l'API ne se connecte jamais en superutilisateur,
@@ -119,6 +125,7 @@ async function release(client: pg.PoolClient) {
 
 app.post('/api/query', async (req, res) => {
   const sql = stripMeta(req.body?.sql)
+  if (engineOf(req.body?.engine) === 'sqlite') return res.json(await sqlite.query(sql))
   const client = await pool.connect()
   const started = performance.now()
   // NOTICE / WARNING émis pendant la requête de l'utilisateur seulement (pas pendant le ROLLBACK de nettoyage)
@@ -167,7 +174,12 @@ app.post('/api/check', async (req, res) => {
   }
 })
 
-app.get('/api/schema', async (_req, res) => {
+app.get('/api/engines', (_req, res) => {
+  res.json(['pg', 'sqlite'] satisfies EngineId[])
+})
+
+app.get('/api/schema', async (req, res) => {
+  if (engineOf(req.query.engine) === 'sqlite') return res.json(sqlite.schema())
   const { rows } = await pool.query(`
     SELECT c.table_name, c.column_name, c.data_type, c.is_nullable,
            (SELECT reltuples::bigint FROM pg_class WHERE oid = ('retail.' || c.table_name)::regclass) AS approx_rows,
@@ -190,8 +202,12 @@ app.get('/api/schema', async (_req, res) => {
   res.json(rows)
 })
 
-app.post('/api/reset', async (_req, res) => {
+app.post('/api/reset', async (req, res) => {
   try {
+    if (engineOf(req.body?.engine) === 'sqlite') {
+      sqlite.reset()
+      return res.json({ ok: true })
+    }
     await pool.query(readFileSync(SETUP_SQL, 'utf8'))
     res.json({ ok: true })
   } catch (e) {
@@ -242,6 +258,7 @@ const DIST = fileURLToPath(new URL('../dist', import.meta.url))
 if (existsSync(DIST)) app.use(express.static(DIST))
 
 bootstrap()
+  .then(async () => sqlite.init(await getDataset(DATA_DIR, DATABASE_URL, readFileSync(SETUP_SQL, 'utf8'))))
   .then(() => app.listen(PORT, () => console.log(`Training SQL sur http://localhost:${PORT}`)))
   .catch((e) => {
     console.error('Démarrage impossible :', e)

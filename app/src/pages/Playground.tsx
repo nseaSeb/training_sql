@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { fetchSchema, listSnippets, resetDb, runSql, type QueryResponse, type SchemaColumn, type Snippet } from '../lib/api'
+import { engineNames, fetchEngines, fetchSchema, listSnippets, resetDb, runSql, type Engine, type QueryResponse, type SchemaColumn, type Snippet } from '../lib/api'
 import { useStored } from '../lib/storage'
 import { splitStatements } from '../lib/statements'
 import { ResultView } from '../components/ResultView'
@@ -7,10 +7,17 @@ import { SchemaPanel } from '../components/SchemaPanel'
 import { SqlEditor, type SqlEditorHandle } from '../components/SqlEditor'
 import { SnippetsPanel, type Draft } from '../components/SnippetsPanel'
 
-const EXPLAIN_PREFIX = 'BEGIN;\nEXPLAIN (ANALYZE, BUFFERS) '
+// « Expliquer » par moteur : PostgreSQL et MySQL exécutent vraiment la requête pour la mesurer (dans une transaction annulée)
+const EXPLAIN: Record<Engine, { prefix: string; suffix: string }> = {
+  pg: { prefix: 'BEGIN;\nEXPLAIN (ANALYZE, BUFFERS) ', suffix: '\n;\nROLLBACK;' },
+  sqlite: { prefix: 'EXPLAIN QUERY PLAN ', suffix: '' },
+  mysql: { prefix: 'EXPLAIN ANALYZE ', suffix: '' },
+}
 
 export default function Playground({ sql, setSql }: { sql: string; setSql: (s: string) => void }) {
   const [response, setResponse] = useState<QueryResponse | null>(null)
+  const [engine, setEngine] = useStored<Engine>('playground:engine', 'pg')
+  const [engines, setEngines] = useState<Engine[]>(['pg'])
   const [running, setRunning] = useState(false)
   const [schema, setSchema] = useState<SchemaColumn[]>([])
   const [openTable, setOpenTable] = useState<string | null>(null)
@@ -49,14 +56,18 @@ export default function Playground({ sql, setSql }: { sql: string; setSql: (s: s
     setSql(q)
     setLoaded(null)
     setRunning(true)
-    setResponse(await runSql(q).catch(() => ({ ok: false as const, ms: 0, error: { message: 'API injoignable' } })))
+    setResponse(await runSql(q, engine).catch(() => ({ ok: false as const, ms: 0, error: { message: 'API injoignable' } })))
     setRunning(false)
   }
 
   useEffect(() => {
-    fetchSchema().then(setSchema).catch(() => setSchema([]))
     listSnippets().then(setSnippets).catch(() => setSnippets([]))
+    fetchEngines().then(setEngines).catch(() => setEngines(['pg']))
   }, [])
+
+  useEffect(() => {
+    fetchSchema(engine).then(setSchema).catch(() => setSchema([]))
+  }, [engine])
 
   /** Ouvre le formulaire de sauvegarde avec la sélection (ou tout l'éditeur). */
   function saveSnippet() {
@@ -87,7 +98,7 @@ export default function Playground({ sql, setSql }: { sql: string; setSql: (s: s
     const prefix = wrap?.prefix ?? ''
     setRunning(true)
     try {
-      const r = await runSql(prefix + text + (wrap?.suffix ?? ''))
+      const r = await runSql(prefix + text + (wrap?.suffix ?? ''), engine)
       if (r.ok && wrap) r.results = r.results.filter((x) => x.command !== 'BEGIN' && x.command !== 'ROLLBACK')
       setResponse(r)
       setHistory((h) => [text, ...h.filter((x) => x !== text)].slice(0, 30))
@@ -141,13 +152,14 @@ export default function Playground({ sql, setSql }: { sql: string; setSql: (s: s
     if (/^\s*explain\b/i.test(text.replace(/^(\s*--[^\n]*\n)+/, '')))
       return setResponse({ ok: false, ms: 0, error: { message: "L'instruction commence déjà par EXPLAIN : utilise ▶ Exécuter." } })
     // Le saut de ligne protège le « ; » final d'un commentaire -- en fin d'instruction
-    send(text, s.from, { prefix: EXPLAIN_PREFIX, suffix: '\n;\nROLLBACK;' })
+    send(text, s.from, EXPLAIN[engine])
   }
 
   async function reset() {
     if (resetState !== 'confirm') return setResetState('confirm')
     setResetState('running')
-    const r = await resetDb().catch(() => ({ ok: false }))
+    const r = await resetDb(engine).catch(() => ({ ok: false }))
+    if (r.ok) fetchSchema(engine).then(setSchema).catch(() => {})
     setResetState(r.ok ? 'done' : 'error')
     setTimeout(() => setResetState('idle'), 2500)
   }
@@ -218,11 +230,28 @@ export default function Playground({ sql, setSql }: { sql: string; setSql: (s: s
           onClick={reset}
           onBlur={() => resetState === 'confirm' && setResetState('idle')}
         >
-          {{ idle: '↺ Réinitialiser la base', confirm: 'Confirmer : tout recréer ?', running: 'Recréation…', done: 'Base recréée ✓', error: 'Échec ✗' }[resetState]}
+          {{ idle: `↺ Réinitialiser la base ${engineNames[engine]}`, confirm: 'Confirmer : tout recréer ?', running: 'Recréation…', done: 'Base recréée ✓', error: 'Échec ✗' }[resetState]}
         </button>
       </aside>
 
       <section className="min-w-0 flex-1">
+        {engines.length > 1 && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 text-sm" role="radiogroup" aria-label="Base de données">
+            <span className="text-slate-500">Base :</span>
+            {engines.map((e) => (
+              <button
+                key={e}
+                role="radio"
+                aria-checked={engine === e}
+                onClick={() => { setEngine(e); setResponse(null) }}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold ${engine === e ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-slate-300 text-slate-600 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800'}`}
+              >
+                {engineNames[e]}
+              </button>
+            ))}
+            <span className="text-xs text-slate-500">Mêmes données dans chaque base : compare les dialectes.</span>
+          </div>
+        )}
         <div className="overflow-hidden rounded-xl border border-slate-300 bg-slate-900 shadow-sm dark:border-slate-700">
           <SqlEditor
             ref={editor}
@@ -259,7 +288,7 @@ export default function Playground({ sql, setSql }: { sql: string; setSql: (s: s
           </div>
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          Chaque exécution est autonome : une transaction laissée ouverte (BEGIN sans COMMIT) est annulée à la fin. Un COMMIT explicite modifie la base pour de bon (bouton « Réinitialiser » pour repartir de zéro). « Expliquer » exécute vraiment l'instruction pour la mesurer, puis annule tout.
+          Une instruction sans BEGIN est validée tout de suite : un UPDATE ou un DELETE seul modifie la base (bouton « Réinitialiser » pour repartir de zéro). Pour tester sans risque : BEGIN; … ROLLBACK; une transaction laissée ouverte est annulée à la fin. « Expliquer » exécute vraiment l'instruction pour la mesurer, puis annule tout.
         </p>
         <div className="mt-5">{response ? <ResultView response={response} /> : <div className="text-sm text-slate-400">Le résultat s'affichera ici.</div>}</div>
       </section>

@@ -29,8 +29,11 @@ services:
       TZ: Europe/Paris
     ports:
       - "47180:5000"
+    volumes:
+      - training_sql_app_data:/srv/app/.data
     depends_on:
       training_sql_pg:
         condition: service_healthy
 volumes:
   training_sql_data:
+  training_sql_app_data:

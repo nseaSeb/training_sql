@@ -9,19 +9,23 @@ export type QueryResponse =
   | { ok: true; ms: number; results: QueryResult[]; notices?: string[] }
   | { ok: false; ms: number; error: { message: string; detail?: string; hint?: string; position?: string; code?: string }; notices?: string[] }
 
-export async function runSql(sql: string): Promise<QueryResponse> {
+export type Engine = 'pg' | 'sqlite' | 'mysql'
+export const engineNames: Record<Engine, string> = { pg: 'PostgreSQL', sqlite: 'SQLite', mysql: 'MySQL' }
+export const fetchEngines = (): Promise<Engine[]> => fetch('/api/engines').then((r) => r.json())
+
+export async function runSql(sql: string, engine: Engine = 'pg'): Promise<QueryResponse> {
   const r = await fetch('/api/query', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ sql }),
+    body: JSON.stringify({ sql, engine }),
   })
   return r.json()
 }
 
 export type SchemaColumn = { table_name: string; column_name: string; data_type: string; is_nullable: string; approx_rows: string; pk: boolean; fk: string | null }
-export const fetchSchema = (): Promise<SchemaColumn[]> => fetch('/api/schema').then((r) => r.json())
-export const resetDb = (): Promise<{ ok: boolean; error?: { message: string } }> =>
-  fetch('/api/reset', { method: 'POST' }).then((r) => r.json())
+export const fetchSchema = (engine: Engine = 'pg'): Promise<SchemaColumn[]> => fetch(`/api/schema?engine=${engine}`).then((r) => r.json())
+export const resetDb = (engine: Engine = 'pg'): Promise<{ ok: boolean; error?: { message: string } }> =>
+  fetch('/api/reset', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ engine }) }).then((r) => r.json())
 
 export type Snippet = { id: number; titre: string; sql: string; tags: string[]; cree_le: string; maj_le: string }
 export type SnippetInput = Pick<Snippet, 'titre' | 'sql' | 'tags'>
