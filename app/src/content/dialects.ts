@@ -1,8 +1,8 @@
 /**
  * Même besoin, cinq dialectes. Versions de référence : PostgreSQL 16, MySQL 8.0, SQL Server 2022,
- * Oracle 23ai, SQLite 3.45. Une version entre parenthèses indique depuis quand la syntaxe existe.
+ * Oracle 23ai, SQLite 3.45, Informix 14.10. Une version entre parenthèses indique depuis quand la syntaxe existe.
  */
-export type DialectId = 'pg' | 'mysql' | 'mssql' | 'oracle' | 'sqlite'
+export type DialectId = 'pg' | 'mysql' | 'mssql' | 'oracle' | 'sqlite' | 'informix'
 
 export const dialectNames: Record<DialectId, string> = {
   pg: 'PostgreSQL',
@@ -10,6 +10,7 @@ export const dialectNames: Record<DialectId, string> = {
   mssql: 'SQL Server',
   oracle: 'Oracle',
   sqlite: 'SQLite',
+  informix: 'Informix',
 }
 
 export type DialectRow = { theme: string; need: string; note?: string } & Record<DialectId, string>
@@ -24,6 +25,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'SELECT TOP 10 …',
     oracle: 'FETCH FIRST 10 ROWS ONLY',
     sqlite: 'LIMIT 10',
+    informix: 'SELECT FIRST 10 …',
     note: 'FETCH FIRST est la forme standard : PostgreSQL et Oracle la comprennent aussi. Toujours avec un ORDER BY, sinon « les 10 premières » ne veut rien dire.',
   },
   {
@@ -34,6 +36,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'ORDER BY … OFFSET 20 ROWS\nFETCH NEXT 10 ROWS ONLY',
     oracle: 'OFFSET 20 ROWS\nFETCH NEXT 10 ROWS ONLY',
     sqlite: 'LIMIT 10 OFFSET 20',
+    informix: 'SELECT SKIP 20 FIRST 10 …',
     note: "SQL Server exige un ORDER BY avant OFFSET. Attention à MySQL : dans LIMIT 20, 10, le décalage vient en premier. OFFSET relit et jette les lignes sautées : il ralentit sur les pages lointaines.",
   },
   {
@@ -44,6 +47,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'WHERE date_t < :d\n   OR (date_t = :d AND id < :id) …',
     oracle: 'WHERE date_t < :d\n   OR (date_t = :d AND id < :id) …',
     sqlite: 'WHERE (date_t, id) < (:d, :id) …',
+    informix: 'WHERE date_t < :d\n   OR (date_t = :d AND id < :id) …',
     note: "On repart de la dernière ligne affichée au lieu de compter les lignes à sauter : le coût reste constant. SQL Server et Oracle ne comparent pas les tuples avec <, d'où la forme développée.",
   },
   {
@@ -54,6 +58,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'SELECT TOP 10 WITH TIES …',
     oracle: 'FETCH FIRST 10 ROWS WITH TIES',
     sqlite: '— (passer par rank())',
+    informix: '— (passer par rank())',
   },
   // Clés générées
   {
@@ -64,6 +69,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'id INT IDENTITY(1,1)',
     oracle: 'id NUMBER GENERATED ALWAYS AS IDENTITY',
     sqlite: 'id INTEGER PRIMARY KEY',
+    informix: 'id SERIAL\n(BIGSERIAL pour 64 bits)',
     note: 'IDENTITY est la forme standard. Partout, une transaction annulée « consomme » quand même les numéros : des trous dans les id sont normaux.',
   },
   {
@@ -74,6 +80,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'INSERT … OUTPUT inserted.id …\n(ou SCOPE_IDENTITY())',
     oracle: 'INSERT … RETURNING id INTO :v',
     sqlite: 'INSERT … RETURNING id (3.35+)\n(ou last_insert_rowid())',
+    informix: 'DBINFO(\'sqlca.sqlerrd1\')\n(DBINFO(\'bigserial\') pour BIGSERIAL)',
   },
   // Écriture
   {
@@ -84,6 +91,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'MERGE INTO t USING … ON …\nWHEN MATCHED THEN UPDATE …\nWHEN NOT MATCHED THEN INSERT …',
     oracle: 'MERGE INTO t USING … ON …\nWHEN MATCHED THEN UPDATE …\nWHEN NOT MATCHED THEN INSERT …',
     sqlite: 'INSERT … ON CONFLICT (k)\nDO UPDATE SET c = excluded.c',
+    informix: 'MERGE INTO t USING … ON …\nWHEN MATCHED THEN UPDATE …\nWHEN NOT MATCHED THEN INSERT …',
     note: 'PostgreSQL 15+ accepte aussi MERGE. Avant MySQL 8.0.19, on écrivait VALUES(c) au lieu de l’alias.',
   },
   {
@@ -94,6 +102,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'UPDATE t SET c = u.c\nFROM t JOIN u ON u.id = t.id',
     oracle: 'UPDATE t SET c = u.c\nFROM u WHERE u.id = t.id (23ai)\navant : MERGE',
     sqlite: 'UPDATE t SET c = u.c\nFROM u WHERE u.id = t.id (3.33+)',
+    informix: 'MERGE INTO t USING u ON (u.id = t.id)\nWHEN MATCHED THEN UPDATE SET c = u.c',
   },
   {
     theme: 'Écriture',
@@ -103,6 +112,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'Oui',
     oracle: 'Non : validation implicite',
     sqlite: 'Oui',
+    informix: 'Oui, dans une base journalisée (WITH LOG)',
     note: 'Sous MySQL et Oracle, un CREATE TABLE valide aussi tout ce qui était en cours dans la transaction.',
   },
   // Texte
@@ -114,6 +124,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'a + b\nCONCAT(a, b)',
     oracle: 'a || b',
     sqlite: 'a || b',
+    informix: 'a || b',
     note: "Avec un NULL : || renvoie NULL (PostgreSQL, SQLite), sauf Oracle qui traite NULL comme ''. concat() ignore les NULL en PostgreSQL et SQL Server, mais CONCAT renvoie NULL en MySQL. Dans MySQL, || est un OU logique.",
   },
   {
@@ -124,6 +135,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'LEN(s)',
     oracle: 'LENGTH(s)',
     sqlite: 'length(s)',
+    informix: 'CHAR_LENGTH(s)\n(LENGTH ignore les blancs de fin)',
     note: 'En MySQL, LENGTH compte les octets (« é » = 2). LEN de SQL Server ignore les espaces de fin.',
   },
   {
@@ -134,6 +146,7 @@ export const dialectRows: DialectRow[] = [
     mssql: "STRING_AGG(x, ', ')\n  WITHIN GROUP (ORDER BY x)",
     oracle: "LISTAGG(x, ', ')\n  WITHIN GROUP (ORDER BY x)",
     sqlite: "group_concat(x, ', ')",
+    informix: '— (pas d’équivalent natif)',
     note: 'GROUP_CONCAT de MySQL tronque à 1024 caractères par défaut (group_concat_max_len).',
   },
   {
@@ -144,6 +157,7 @@ export const dialectRows: DialectRow[] = [
     mssql: "LIKE '%bio%'",
     oracle: "UPPER(x) LIKE '%BIO%'",
     sqlite: "LIKE '%bio%'",
+    informix: 'UPPER(x) LIKE \'%BIO%\'',
     note: 'MySQL et SQL Server sont insensibles à la casse par défaut à cause de leur collation, pas de LIKE. SQLite ne l’est que pour les lettres ASCII.',
   },
   {
@@ -154,6 +168,7 @@ export const dialectRows: DialectRow[] = [
     mssql: "'' et NULL sont différents",
     oracle: "'' EST NULL",
     sqlite: "'' et NULL sont différents",
+    informix: '\'\' et NULL sont différents',
     note: "Sous Oracle, WHERE x = '' ne renvoie jamais rien : il faut x IS NULL.",
   },
   // Dates
@@ -165,6 +180,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'SYSDATETIME()\n(ou GETDATE())',
     oracle: 'SYSTIMESTAMP\n(ou SYSDATE)',
     sqlite: "datetime('now')",
+    informix: 'CURRENT\n(TODAY pour la date seule)',
     note: "now() de PostgreSQL est figé au début de la transaction. datetime('now') de SQLite est en UTC.",
   },
   {
@@ -175,6 +191,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'DATEADD(day, 7, d)',
     oracle: "d + 7\n(ou d + INTERVAL '7' DAY)",
     sqlite: "date(d, '+7 days')",
+    informix: 'd + 7 (DATE)\ndt + 7 UNITS DAY (DATETIME)',
   },
   {
     theme: 'Dates',
@@ -184,6 +201,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'DATEDIFF(day, d1, d2)',
     oracle: 'd2 - d1',
     sqlite: 'julianday(d2) - julianday(d1)',
+    informix: 'd2 - d1 (deux DATE)',
     note: "Ordre des arguments inversé entre MySQL et SQL Server. DATEDIFF de SQL Server compte les franchissements de minuit, pas des durées de 24 h.",
   },
   {
@@ -194,6 +212,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'DATETRUNC(month, d) (2022+)',
     oracle: "TRUNC(d, 'MM')",
     sqlite: "date(d, 'start of month')",
+    informix: 'MDY(MONTH(d), 1, YEAR(d))',
   },
   {
     theme: 'Dates',
@@ -203,6 +222,7 @@ export const dialectRows: DialectRow[] = [
     mssql: "FORMAT(d, 'dd/MM/yyyy')",
     oracle: "TO_CHAR(d, 'DD/MM/YYYY')",
     sqlite: "strftime('%d/%m/%Y', d)",
+    informix: 'TO_CHAR(d, \'%d/%m/%Y\')',
   },
   {
     theme: 'Dates',
@@ -212,6 +232,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'date, datetime2, datetimeoffset',
     oracle: 'DATE (contient l’heure !), TIMESTAMP',
     sqlite: 'Pas de type date : texte ISO 8601',
+    informix: 'DATE (jour seul), DATETIME YEAR TO SECOND, INTERVAL',
     note: "Le DATE d'Oracle porte une heure : WHERE d = DATE '2026-10-01' rate les lignes saisies dans la journée.",
   },
   // NULL et types
@@ -223,6 +244,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'COALESCE(x, 0)\n(ou ISNULL)',
     oracle: 'COALESCE(x, 0)\n(ou NVL)',
     sqlite: 'coalesce(x, 0)\n(ou ifnull)',
+    informix: 'NVL(x, 0)',
     note: 'COALESCE est standard et accepte plus de deux arguments : à préférer partout.',
   },
   {
@@ -233,6 +255,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'a IS NOT DISTINCT FROM b (2022+)',
     oracle: 'DECODE(a, b, 1, 0) = 1',
     sqlite: 'a IS b',
+    informix: 'a = b OR (a IS NULL AND b IS NULL)',
   },
   {
     theme: 'NULL et types',
@@ -242,6 +265,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'Au début',
     oracle: 'À la fin\n(NULLS FIRST / LAST)',
     sqlite: 'Au début\n(NULLS FIRST / LAST)',
+    informix: 'Au début',
     note: 'Sans NULLS LAST : ORDER BY x IS NULL, x en MySQL ; ORDER BY CASE WHEN x IS NULL THEN 1 ELSE 0 END, x en SQL Server.',
   },
   {
@@ -252,6 +276,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'bit (0 / 1)',
     oracle: 'BOOLEAN (23ai)\navant : NUMBER(1)',
     sqlite: 'Entier 0 / 1',
+    informix: 'BOOLEAN (\'t\' / \'f\')',
     note: 'SQL Server ne sait pas renvoyer une condition comme valeur : SELECT a > b est interdit, il faut CASE WHEN.',
   },
   // Requêtes
@@ -263,6 +288,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'SELECT 1',
     oracle: 'SELECT 1 FROM dual\n(FROM facultatif en 23ai)',
     sqlite: 'SELECT 1',
+    informix: 'SELECT 1 FROM systables\nWHERE tabid = 1',
   },
   {
     theme: 'Requêtes',
@@ -272,6 +298,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'EXCEPT',
     oracle: 'MINUS\n(EXCEPT en 21c+)',
     sqlite: 'EXCEPT',
+    informix: 'EXCEPT (ou MINUS)',
   },
   {
     theme: 'Requêtes',
@@ -281,6 +308,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'FULL JOIN',
     oracle: 'FULL JOIN',
     sqlite: 'FULL JOIN (3.39+)',
+    informix: 'FULL OUTER JOIN',
   },
   {
     theme: 'Requêtes',
@@ -290,6 +318,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'WITH (sans RECURSIVE)',
     oracle: 'WITH (sans RECURSIVE)\nou CONNECT BY',
     sqlite: 'WITH RECURSIVE',
+    informix: 'CONNECT BY (requêtes hiérarchiques)',
   },
   {
     theme: 'Requêtes',
@@ -299,6 +328,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'row_number() OVER (…) = 1',
     oracle: 'row_number() OVER (…) = 1',
     sqlite: 'row_number() OVER (…) = 1',
+    informix: 'row_number() OVER (…) = 1\n(12.10+)',
     note: 'DISTINCT ON est propre à PostgreSQL. row_number() marche partout (MySQL 8+).',
   },
   {
@@ -309,6 +339,7 @@ export const dialectRows: DialectRow[] = [
     mssql: '[Nom Colonne]\n(ou "…")',
     oracle: '"Nom Colonne"',
     sqlite: '"Nom Colonne"',
+    informix: '"Nom Colonne"\n(seulement avec DELIMIDENT)',
     note: 'Sans guillemets, PostgreSQL met les noms en minuscules et Oracle en majuscules. Les apostrophes sont réservées aux chaînes partout.',
   },
 ]

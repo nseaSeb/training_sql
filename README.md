@@ -6,7 +6,7 @@ Mini-site React pour s'entraîner au SQL sur une vraie base PostgreSQL :
 
 - **Exercices corrigés automatiquement** (débutant → avancé) : ta requête et la solution sont exécutées sur la base, chacune dans une transaction annulée, puis leurs résultats sont comparés. Les exercices d'écriture (`UPDATE`, `CREATE TABLE`, vues, index…) sont corrigés par une requête de contrôle.
 - **Cours visuels**, méthode, lexique et cheatsheet (avec les équivalences SQL Server).
-- **Dialectes** : le même besoin en PostgreSQL, MySQL, SQL Server, Oracle et SQLite (pagination, dates, texte, NULL, upsert…).
+- **Dialectes** : le même besoin en PostgreSQL, MySQL, SQL Server, Oracle, SQLite et Informix (pagination, dates, texte, NULL, upsert…).
 - **Tickets d'incidents** réalistes avec indices et solutions commentées.
 - **Playground** SQL en direct, sur **PostgreSQL, SQLite ou MySQL** au choix (mêmes données partout), et **auto-évaluation**.
 

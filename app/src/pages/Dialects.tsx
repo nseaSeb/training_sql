@@ -7,7 +7,7 @@ const ids = Object.keys(dialectNames) as DialectId[]
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
 export default function Dialects() {
-  const [shown, setShown] = useStored<DialectId[]>('dialectes:shown', ids)
+  const [shown, setShown] = useStored<DialectId[]>('dialectes:shown:v2', ids)
   const [q, setQ] = useState('')
   const cols = ids.filter((d) => shown.includes(d))
   const rows = useMemo(() => {
@@ -21,7 +21,7 @@ export default function Dialects() {
     <>
       <PageHeader
         title="Dialectes SQL"
-        subtitle="Le même besoin écrit en PostgreSQL, MySQL, SQL Server, Oracle et SQLite. Le SQL standard est commun, les écarts sont dans la pagination, les dates, le texte, les NULL et l'upsert."
+        subtitle="Le même besoin écrit en PostgreSQL, MySQL, SQL Server, Oracle, SQLite et Informix. Le SQL standard est commun, les écarts sont dans la pagination, les dates, le texte, les NULL et l'upsert."
       />
       <div className="mb-6 flex flex-wrap items-center gap-2">
         <input
@@ -75,6 +75,22 @@ export default function Dialects() {
         </section>
       ))}
       {!rows.length && <p className="text-slate-500">Rien trouvé pour « {q} ».</p>}
+
+      <H2 id="informix">Informix : ce qui surprend</H2>
+      <P>Pas de base Informix dans le playground (image trop lourde), mais les réflexes à avoir quand on passe de PostgreSQL à Informix :</P>
+      <ul className="mb-6 list-disc space-y-2 pl-6 text-sm text-slate-700 dark:text-slate-300">
+        <li><C>SELECT SKIP 20 FIRST 10 …</C> : la pagination se place juste après <C>SELECT</C>, pas en fin de requête.</li>
+        <li><C>MATCHES</C> en plus de <C>LIKE</C>, avec les jokers <C>*</C> et <C>?</C> : <C>WHERE libelle MATCHES '*[Bb]io*'</C>. Les deux sont sensibles à la casse.</li>
+        <li>Les dates : <C>TODAY</C> (type <C>DATE</C>) et <C>CURRENT</C> (type <C>DATETIME</C>). Un <C>DATETIME</C> déclare sa précision : <C>DATETIME YEAR TO SECOND</C>, <C>DATETIME HOUR TO MINUTE</C>… On ajoute une durée avec <C>UNITS</C> : <C>CURRENT - 2 UNITS HOUR</C>.</li>
+        <li><C>MDY(m, d, y)</C> fabrique une date ; <C>DAY()</C>, <C>MONTH()</C>, <C>YEAR()</C>, <C>WEEKDAY()</C> (0 = dimanche) la découpent. Le format d'affichage dépend des variables <C>DBDATE</C> et <C>GL_DATETIME</C>.</li>
+        <li>Tables temporaires à la volée : <C>SELECT … INTO TEMP t WITH NO LOG</C>, très utilisé pour découper une requête de diagnostic en étapes.</li>
+        <li><C>SELECT</C> exige un <C>FROM</C> : l'idiome est <C>SELECT … FROM systables WHERE tabid = 1</C> (une ligne garantie).</li>
+        <li>Les guillemets doubles délimitent une chaîne, sauf si la variable <C>DELIMIDENT</C> est définie : ils citent alors un identifiant, comme en SQL standard.</li>
+        <li>Lecture sans verrou pour un diagnostic : <C>SET ISOLATION TO DIRTY READ</C> (l'équivalent de <C>READ UNCOMMITTED</C>). Pratique sur une base chargée, mais on peut lire des données non validées.</li>
+        <li>Les transactions dépendent du mode de journalisation de la base : sans journalisation, <C>BEGIN WORK</C> est refusé et chaque instruction est définitive.</li>
+        <li>Ancienne syntaxe de jointure externe encore présente dans du code existant : <C>FROM a, OUTER b WHERE a.id = b.a_id</C>. À réécrire en <C>LEFT JOIN</C>.</li>
+        <li>Dans <C>dbaccess</C>, <C>UNLOAD TO 'fichier.unl' SELECT …</C> exporte un résultat (séparateur <C>|</C>) et <C>LOAD FROM</C> le recharge.</li>
+      </ul>
 
       <H2>Écrire du SQL portable</H2>
       <P>
