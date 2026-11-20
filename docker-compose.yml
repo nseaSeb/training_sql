@@ -1,6 +1,6 @@
 name: training_sql
 # docker compose up -d          → tout le training sur http://localhost:47180
-# docker compose up -d training_sql_pg → la base seule, pour npm run dev
+# docker compose up -d training_sql_pg training_sql_mysql → les bases seules, pour npm run dev
 services:
   training_sql_pg:
     image: postgres:16
@@ -21,11 +21,26 @@ services:
       test: ["CMD-SHELL", "pg_isready -U kit -d training_sql"]
       interval: 3s
       retries: 20
+  training_sql_mysql:
+    image: mysql:8.0
+    container_name: training_sql_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: kit
+      TZ: Europe/Paris
+    ports:
+      - "33307:3306"
+    volumes:
+      - training_sql_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -pkit --silent"]
+      interval: 3s
+      retries: 40
   app:
     build: .
     container_name: training_sql_app
     environment:
       DATABASE_URL: postgres://kit:kit@training_sql_pg:5432/training_sql
+      MYSQL_URL: mysql://root:kit@training_sql_mysql:3306/training_sql
       TZ: Europe/Paris
     ports:
       - "47180:5000"
@@ -34,6 +49,9 @@ services:
     depends_on:
       training_sql_pg:
         condition: service_healthy
+      training_sql_mysql:
+        condition: service_healthy
 volumes:
   training_sql_data:
   training_sql_app_data:
+  training_sql_mysql_data:

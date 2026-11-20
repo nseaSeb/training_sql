@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { checkExercise } from './check'
 import { getDataset } from './engines/dataset'
 import { SqliteEngine } from './engines/sqlite'
+import { MysqlEngine } from './engines/mysql'
 import type { EngineId } from './engines/types'
 import { exercises } from '../src/content/exercises'
 
@@ -19,7 +20,11 @@ const MAX_ROWS = 1000
 const SETUP_SQL = fileURLToPath(new URL('../../kit/01_setup_base.sql', import.meta.url))
 const DATA_DIR = process.env.DATA_DIR ?? fileURLToPath(new URL('../.data', import.meta.url))
 const sqlite = new SqliteEngine(DATA_DIR, MAX_ROWS, 15000)
-const engineOf = (v: unknown): EngineId => (v === 'sqlite' || v === 'mysql' ? v : 'pg')
+// MySQL est facultatif : proposé seulement s'il répond au démarrage (MYSQL_URL=off pour le désactiver)
+const MYSQL_URL = process.env.MYSQL_URL ?? 'mysql://root:kit@localhost:33307/training_sql'
+const mysqlDb = MYSQL_URL === 'off' ? null : new MysqlEngine({ url: MYSQL_URL, maxRows: MAX_ROWS, timeoutMs: 15000 })
+const ready = new Set<EngineId>(['pg', 'sqlite'])
+const engineOf = (v: unknown): EngineId => (v === 'sqlite' || (v === 'mysql' && ready.has('mysql')) ? v : 'pg')
 
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://kit:kit@localhost:55433/training_sql'
 // En ligne (KIT_APP_PASSWORD défini) : l'API ne se connecte jamais en superutilisateur,
@@ -125,7 +130,9 @@ async function release(client: pg.PoolClient) {
 
 app.post('/api/query', async (req, res) => {
   const sql = stripMeta(req.body?.sql)
-  if (engineOf(req.body?.engine) === 'sqlite') return res.json(await sqlite.query(sql))
+  const engine = engineOf(req.body?.engine)
+  if (engine === 'sqlite') return res.json(await sqlite.query(sql))
+  if (engine === 'mysql') return res.json(await mysqlDb!.query(sql))
   const client = await pool.connect()
   const started = performance.now()
   // NOTICE / WARNING émis pendant la requête de l'utilisateur seulement (pas pendant le ROLLBACK de nettoyage)
@@ -175,11 +182,12 @@ app.post('/api/check', async (req, res) => {
 })
 
 app.get('/api/engines', (_req, res) => {
-  res.json(['pg', 'sqlite'] satisfies EngineId[])
+  res.json((['pg', 'sqlite', 'mysql'] as EngineId[]).filter((e) => ready.has(e)))
 })
 
 app.get('/api/schema', async (req, res) => {
   if (engineOf(req.query.engine) === 'sqlite') return res.json(sqlite.schema())
+  if (engineOf(req.query.engine) === 'mysql') return res.json(await mysqlDb!.schema())
   const { rows } = await pool.query(`
     SELECT c.table_name, c.column_name, c.data_type, c.is_nullable,
            (SELECT reltuples::bigint FROM pg_class WHERE oid = ('retail.' || c.table_name)::regclass) AS approx_rows,
@@ -204,10 +212,10 @@ app.get('/api/schema', async (req, res) => {
 
 app.post('/api/reset', async (req, res) => {
   try {
-    if (engineOf(req.body?.engine) === 'sqlite') {
-      sqlite.reset()
-      return res.json({ ok: true })
-    }
+    const engine = engineOf(req.body?.engine)
+    if (engine === 'sqlite') sqlite.reset()
+    if (engine === 'mysql') await mysqlDb!.reset()
+    if (engine !== 'pg') return res.json({ ok: true })
     await pool.query(readFileSync(SETUP_SQL, 'utf8'))
     res.json({ ok: true })
   } catch (e) {
@@ -258,7 +266,15 @@ const DIST = fileURLToPath(new URL('../dist', import.meta.url))
 if (existsSync(DIST)) app.use(express.static(DIST))
 
 bootstrap()
-  .then(async () => sqlite.init(await getDataset(DATA_DIR, DATABASE_URL, readFileSync(SETUP_SQL, 'utf8'))))
+  .then(async () => {
+    const ds = await getDataset(DATA_DIR, DATABASE_URL, readFileSync(SETUP_SQL, 'utf8'))
+    sqlite.init(ds)
+    // MySQL peut démarrer après l'app : chargé en arrière-plan, proposé dès qu'il est prêt
+    mysqlDb
+      ?.init(ds)
+      .then(() => ready.add('mysql'))
+      .catch((e) => console.warn(`MySQL indisponible (${MYSQL_URL.replace(/:[^:@/]+@/, ':***@')}) : ${(e as Error).message}`))
+  })
   .then(() => app.listen(PORT, () => console.log(`Training SQL sur http://localhost:${PORT}`)))
   .catch((e) => {
     console.error('Démarrage impossible :', e)

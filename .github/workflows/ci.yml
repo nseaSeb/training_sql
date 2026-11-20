@@ -40,6 +40,16 @@ jobs:
           --health-cmd "pg_isready -U kit -d training_sql"
           --health-interval 3s
           --health-retries 20
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: kit
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost -pkit --silent"
+          --health-interval 3s
+          --health-retries 40
     env:
       PGHOST: localhost
       PGUSER: kit
@@ -62,3 +72,4 @@ jobs:
         working-directory: app
         env:
           DATABASE_URL: postgres://kit:kit@localhost:5432/training_sql
+          MYSQL_URL: mysql://root:kit@127.0.0.1:3306/training_sql_test

@@ -7,6 +7,7 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getDataset } from './engines/dataset'
 import { SqliteEngine } from './engines/sqlite'
+import { MysqlEngine } from './engines/mysql'
 
 const DATABASE_URL = process.env.DATABASE_URL ?? 'postgres://kit:kit@localhost:55433/training_sql'
 const SETUP = readFileSync(fileURLToPath(new URL('../../kit/01_setup_base.sql', import.meta.url)), 'utf8')
@@ -35,4 +36,22 @@ test('SQLite : une transaction laissée ouverte est annulée, une erreur est rem
   assert.deepEqual(afterOpen.ok && afterOpen.results, before.ok && before.results)
   const bad = await sqlite.query('SELECT nope FROM magasins')
   assert.equal(bad.ok, false)
+})
+
+const MYSQL_URL = process.env.MYSQL_URL ?? 'mysql://root:kit@localhost:33307/training_sql_test'
+test('MySQL : mêmes nombres de lignes et sommes que le kit, transaction ouverte annulée', { skip: MYSQL_URL === 'off' }, async () => {
+  const ds = await getDataset(dir, DATABASE_URL, SETUP)
+  const db = new MysqlEngine({ url: MYSQL_URL, maxRows: 1000, timeoutMs: 15000 })
+  await db.init(ds, 1)
+  await db.reset()
+  for (const t of ds.tables) {
+    const r = await db.query(`SELECT count(*) FROM \`${t.name}\``)
+    assert.ok(r.ok, `${t.name} illisible`)
+    assert.equal(r.ok && Number(r.results[0].rows[0][0]), t.rows.length, `${t.name} : nombre de lignes`)
+  }
+  const sums = await db.query("SELECT sum(total_ttc), sum(statut = 'ANNULE') FROM tickets_caisse")
+  assert.deepEqual(sums.ok && sums.results[0].rows[0].map(Number), [1508054.24, 385])
+  await db.query('BEGIN; DELETE FROM magasins WHERE id = 5')
+  const n = await db.query('SELECT count(*) FROM magasins')
+  assert.equal(n.ok && Number(n.results[0].rows[0][0]), 5)
 })
