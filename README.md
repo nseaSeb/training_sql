@@ -24,12 +24,22 @@ Le jeu de données (schéma `retail` : magasins, produits, tickets de caisse, st
 
 ## Démarrer
 
-Prérequis : Docker et Node.js 24.
+Seul prérequis : Docker.
 
 ```bash
-docker compose up -d          # Postgres 16 sur le port 55433 (base training_sql, schéma retail)
+docker compose up -d --build  # site + API + PostgreSQL 16
+```
+
+Le training est sur http://localhost:47180.
+
+### Développer
+
+Prérequis supplémentaire : Node.js 24.
+
+```bash
+docker compose up -d training_sql_pg   # la base seule, port 55433
 cd app && npm install
-npm run dev                   # API sur :3381 + site sur http://localhost:47115
+npm run dev                            # API sur :3381 + site sur http://localhost:47115
 ```
 
 | Service | Adresse |

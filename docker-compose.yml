@@ -1,5 +1,6 @@
 name: training_sql
-# Postgres isolé pour le kit d'entraînement (port 55433)
+# docker compose up -d          → tout le training sur http://localhost:47180
+# docker compose up -d training_sql_pg → la base seule, pour npm run dev
 services:
   training_sql_pg:
     image: postgres:16
@@ -20,5 +21,16 @@ services:
       test: ["CMD-SHELL", "pg_isready -U kit -d training_sql"]
       interval: 3s
       retries: 20
+  app:
+    build: .
+    container_name: training_sql_app
+    environment:
+      DATABASE_URL: postgres://kit:kit@training_sql_pg:5432/training_sql
+      TZ: Europe/Paris
+    ports:
+      - "47180:5000"
+    depends_on:
+      training_sql_pg:
+        condition: service_healthy
 volumes:
   training_sql_data:
