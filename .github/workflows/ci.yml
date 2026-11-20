@@ -13,8 +13,8 @@ jobs:
       run:
         working-directory: app
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -46,11 +46,11 @@ jobs:
       PGPASSWORD: kit
       PGDATABASE: training_sql
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: psql -v ON_ERROR_STOP=1 -q -f docker/99_settings.sql
       - run: psql -v ON_ERROR_STOP=1 -q -f kit/01_setup_base.sql
       - run: psql -v ON_ERROR_STOP=1 -q -f kit/03_solutions.sql > /dev/null
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
