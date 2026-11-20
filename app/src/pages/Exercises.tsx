@@ -52,8 +52,13 @@ function ExerciseView({ ex, done, onDone }: { ex: Exercise; done: boolean; onDon
     const tx = transactionControl(sql)
     if (tx) return setResponse({ ok: false, ms: 0, error: { message: `Retire ${tx} : ici, tout est exécuté dans une transaction annulée.` } })
     setBusy(true)
-    // BEGIN ouvert et jamais validé : le serveur annule la transaction à la fin, la base reste intacte
-    setResponse(await runSql(`BEGIN; ${sql}`).catch((e) => ({ ok: false as const, ms: 0, error: { message: String(e) } })))
+    // BEGIN ouvert et jamais validé : le serveur annule la transaction à la fin, la base reste intacte.
+    // On retire ensuite le résultat du BEGIN et on recale la position d'erreur sur le texte de l'apprenant.
+    const prefix = 'BEGIN; '
+    const r: QueryResponse = await runSql(prefix + sql).catch((e) => ({ ok: false as const, ms: 0, error: { message: String(e) } }))
+    if (r.ok) r.results = r.results.slice(1)
+    else if (r.error.position) r.error.position = String(Number(r.error.position) - prefix.length)
+    setResponse(r)
     setBusy(false)
   }
 

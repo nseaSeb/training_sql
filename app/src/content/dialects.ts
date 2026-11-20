@@ -92,7 +92,7 @@ export const dialectRows: DialectRow[] = [
     pg: 'UPDATE t SET c = u.c\nFROM u WHERE u.id = t.id',
     mysql: 'UPDATE t JOIN u ON u.id = t.id\nSET t.c = u.c',
     mssql: 'UPDATE t SET c = u.c\nFROM t JOIN u ON u.id = t.id',
-    oracle: 'MERGE INTO t USING u ON (u.id = t.id)\nWHEN MATCHED THEN UPDATE SET t.c = u.c',
+    oracle: 'UPDATE t SET c = u.c\nFROM u WHERE u.id = t.id (23ai)\navant : MERGE',
     sqlite: 'UPDATE t SET c = u.c\nFROM u WHERE u.id = t.id (3.33+)',
   },
   {
@@ -242,7 +242,7 @@ export const dialectRows: DialectRow[] = [
     mssql: 'Au début',
     oracle: 'À la fin\n(NULLS FIRST / LAST)',
     sqlite: 'Au début\n(NULLS FIRST / LAST)',
-    note: 'Sans NULLS LAST (MySQL, SQL Server) : ORDER BY x IS NULL, x.',
+    note: 'Sans NULLS LAST : ORDER BY x IS NULL, x en MySQL ; ORDER BY CASE WHEN x IS NULL THEN 1 ELSE 0 END, x en SQL Server.',
   },
   {
     theme: 'NULL et types',
