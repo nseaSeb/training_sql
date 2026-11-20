@@ -1,0 +1,24 @@
+name: training_sql
+# Postgres isolé pour le kit d'entraînement (port 55432)
+services:
+  training_sql_pg:
+    image: postgres:16
+    container_name: training_sql_pg
+    environment:
+      POSTGRES_USER: kit
+      POSTGRES_PASSWORD: kit
+      POSTGRES_DB: training_sql
+      TZ: Europe/Paris
+      PGTZ: Europe/Paris
+    ports:
+      - "55432:5432"
+    volumes:
+      - training_sql_data:/var/lib/postgresql/data
+      - ./kit/01_setup_base.sql:/docker-entrypoint-initdb.d/01_setup_base.sql:ro
+      - ./docker/99_settings.sql:/docker-entrypoint-initdb.d/99_settings.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kit -d training_sql"]
+      interval: 3s
+      retries: 20
+volumes:
+  training_sql_data:

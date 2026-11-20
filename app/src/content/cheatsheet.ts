@@ -1,0 +1,89 @@
+export type Snippet = { cat: string; title: string; sql: string; note?: string; tags?: string }
+
+export const snippets: Snippet[] = [
+  // Explorer
+  { cat: 'Explorer', title: 'Lister les tables et leur taille', sql: `SELECT relname AS table_, n_live_tup AS lignes\nFROM pg_stat_user_tables\nWHERE schemaname = 'retail'\nORDER BY 2 DESC;`, note: 'Équivalent psql : \\dt retail.*', tags: 'schéma découvrir' },
+  { cat: 'Explorer', title: "Colonnes d'une table", sql: `SELECT column_name, data_type, is_nullable\nFROM information_schema.columns\nWHERE table_schema = 'retail' AND table_name = 'tickets_caisse'\nORDER BY ordinal_position;`, note: 'Équivalent psql : \\d tickets_caisse', tags: 'structure describe' },
+  { cat: 'Explorer', title: 'Index existants', sql: `SELECT tablename, indexname, indexdef\nFROM pg_indexes\nWHERE schemaname = 'retail';`, note: 'psql : \\di', tags: 'index' },
+  { cat: 'Explorer', title: 'Valeurs distinctes et fréquences', sql: `SELECT statut, count(*)\nFROM tickets_caisse\nGROUP BY statut\nORDER BY 2 DESC;`, note: "Premier réflexe sur une colonne inconnue : quelles valeurs, combien de chacune ?", tags: 'profiler distribution' },
+  { cat: 'Explorer', title: 'Min / max / nb de NULL', sql: `SELECT min(date_ticket), max(date_ticket),\n       count(*) - count(total_ttc) AS nb_null\nFROM tickets_caisse;`, tags: 'profiler bornes' },
+
+  { cat: 'Explorer', title: 'Version du serveur', sql: `SELECT version();`, note: 'psql --version donne la version du client, pas celle du serveur.', tags: 'version server_version' },
+  { cat: 'Explorer', title: 'Chercher une fonction', sql: `SELECT p.proname, pg_get_function_arguments(p.oid) AS arguments, obj_description(p.oid, 'pg_proc') AS description\nFROM pg_proc p\nWHERE p.proname LIKE 'date%' AND p.pronamespace = 'pg_catalog'::regnamespace\nORDER BY 1;`, note: 'Équivalent psql : \\df date*  ·  syntaxe d’une commande : \\h UPDATE', tags: 'aide man help fonction doc' },
+  { cat: 'Explorer', title: 'Taille des tables', sql: `SELECT relname AS table_, pg_size_pretty(pg_total_relation_size(relid)) AS total\nFROM pg_stat_user_tables WHERE schemaname = 'retail'\nORDER BY pg_total_relation_size(relid) DESC;`, tags: 'taille espace disque' },
+  { cat: 'Explorer', title: 'Qui pointe vers qui (clés étrangères)', sql: `SELECT conrelid::regclass AS table_, pg_get_constraintdef(oid) AS definition\nFROM pg_constraint\nWHERE contype = 'f' AND connamespace = 'retail'::regnamespace;`, tags: 'foreign key fk relation contrainte' },
+
+  // Filtrer
+  { cat: 'Filtrer', title: 'Tester NULL', sql: `SELECT * FROM clients_fidelite WHERE email IS NULL;`, note: "« = NULL » ne trouve jamais rien : NULL n'est égal à rien, pas même à NULL.", tags: 'null is null' },
+  { cat: 'Filtrer', title: 'Égalité qui accepte NULL', sql: `SELECT * FROM prix_promos a\nJOIN prix_promos b ON a.magasin_id IS NOT DISTINCT FROM b.magasin_id\nLIMIT 5;`, note: 'IS NOT DISTINCT FROM : NULL = NULL vaut vrai.', tags: 'null distinct' },
+  { cat: 'Filtrer', title: 'Plage de dates demi-ouverte', sql: `SELECT count(*) FROM tickets_caisse\nWHERE date_ticket >= '2026-10-01' AND date_ticket < '2026-11-01';`, note: 'Bornes >= / < : pas de trou à 23:59:59, et un index sur la colonne reste utilisable.', tags: 'date between' },
+  { cat: 'Filtrer', title: 'Recherche texte insensible à la casse', sql: `SELECT * FROM produits WHERE libelle ILIKE '%pâtes%' LIMIT 10;`, tags: 'like ilike texte' },
+  { cat: 'Filtrer', title: 'Expression régulière', sql: `SELECT * FROM import_produits_staging WHERE ean !~ '^[0-9]{13}$';`, note: '~ correspond, !~ ne correspond pas, ~* insensible à la casse.', tags: 'regex format contrôle' },
+  { cat: 'Filtrer', title: 'Liste de valeurs', sql: `SELECT * FROM produits WHERE id IN (12, 57, 230);`, tags: 'in' },
+
+  // Joindre
+  { cat: 'Joindre', title: 'INNER JOIN', sql: `SELECT t.id, m.nom, t.total_ttc\nFROM tickets_caisse t\nJOIN magasins m ON m.id = t.magasin_id\nLIMIT 10;`, note: 'Garde uniquement les lignes qui ont un correspondant des deux côtés.', tags: 'jointure' },
+  { cat: 'Joindre', title: 'LEFT JOIN (garder tout à gauche)', sql: `SELECT p.id, p.libelle, count(l.id) AS nb_lignes\nFROM produits p\nLEFT JOIN lignes_ticket l ON l.produit_id = p.id\nGROUP BY p.id\nORDER BY nb_lignes\nLIMIT 10;`, note: 'Filtre sur la table de droite → dans le ON, sinon le LEFT redevient INNER.', tags: 'jointure externe' },
+  { cat: 'Joindre', title: 'Anti-jointure (ceux qui n’ont pas de …)', sql: `SELECT p.id, p.libelle\nFROM produits p\nWHERE NOT EXISTS (SELECT 1 FROM lignes_ticket l WHERE l.produit_id = p.id);`, note: 'Préférer NOT EXISTS à NOT IN (piège des NULL).', tags: 'not exists not in jamais' },
+  { cat: 'Joindre', title: 'Semi-jointure (existence sans duplication)', sql: `SELECT * FROM produits p\nWHERE EXISTS (SELECT 1 FROM prix_promos pp WHERE pp.produit_id = p.id);`, note: 'EXISTS ne multiplie pas les lignes, contrairement à un JOIN 1-N.', tags: 'exists fan-out' },
+  { cat: 'Joindre', title: 'Auto-jointure (paires)', sql: `SELECT a.id, b.id\nFROM prix_promos a\nJOIN prix_promos b ON b.produit_id = a.produit_id AND a.id < b.id\n                  AND a.debut <= b.fin AND b.debut <= a.fin;`, note: 'a.id < b.id : chaque paire une seule fois.', tags: 'chevauchement self join' },
+  { cat: 'Joindre', title: 'LATERAL (top 1 par ligne)', sql: `SELECT m.code, last.debut, last.statut\nFROM magasins m\nLEFT JOIN LATERAL (\n  SELECT * FROM imports_log i\n  WHERE i.magasin_id = m.id ORDER BY debut DESC LIMIT 1\n) last ON true;`, note: 'La sous-requête peut référencer les colonnes de la ligne courante.', tags: 'lateral dernier' },
+  { cat: 'Joindre', title: 'Détecter un fan-out', sql: `SELECT l.id, count(*)\nFROM lignes_ticket l\nJOIN prix_promos pp ON pp.produit_id = l.produit_id\nGROUP BY l.id HAVING count(*) > 1\nLIMIT 10;`, note: 'Si un SUM est trop gros après jointure : compter les lignes par clé.', tags: 'doublon jointure sum' },
+
+  // Agréger
+  { cat: 'Agréger', title: 'GROUP BY + HAVING', sql: `SELECT ean, count(*)\nFROM produits\nGROUP BY ean\nHAVING count(*) > 1;`, note: 'WHERE filtre les lignes avant le regroupement, HAVING filtre les groupes après.', tags: 'doublons' },
+  { cat: 'Agréger', title: 'Agrégat conditionnel FILTER', sql: `SELECT magasin_id,\n       count(*) FILTER (WHERE statut = 'ANNULE') AS annules,\n       sum(total_ttc) FILTER (WHERE statut = 'VALIDE') AS ca\nFROM tickets_caisse GROUP BY 1;`, note: 'Équivaut à sum(CASE WHEN … THEN x END).', tags: 'pivot case' },
+  { cat: 'Agréger', title: 'count(*) vs count(col) vs count(DISTINCT)', sql: `SELECT count(*), count(carte_fidelite), count(DISTINCT carte_fidelite)\nFROM tickets_caisse;`, note: 'count(col) ignore les NULL.', tags: 'compter null' },
+  { cat: 'Agréger', title: 'Concaténer un groupe', sql: `SELECT ean, string_agg(id::text, ', ' ORDER BY id)\nFROM produits GROUP BY ean HAVING count(*) > 1;`, tags: 'string_agg liste' },
+  { cat: 'Agréger', title: 'Sous-totaux ROLLUP', sql: `SELECT magasin_id, statut, count(*)\nFROM tickets_caisse\nGROUP BY ROLLUP (magasin_id, statut)\nORDER BY 1, 2;`, note: 'Les lignes avec NULL sont les sous-totaux et le total général.', tags: 'total' },
+
+  // Fenêtres
+  { cat: 'Fenêtres', title: 'Numéroter dans un groupe', sql: `SELECT flux, magasin_id, debut,\n       row_number() OVER (PARTITION BY flux, magasin_id ORDER BY debut DESC) AS rn\nFROM imports_log;`, note: 'rn = 1 → le dernier passage par groupe (filtrer dans une requête englobante).', tags: 'row_number dernier' },
+  { cat: 'Fenêtres', title: 'Dernier par groupe (DISTINCT ON)', sql: `SELECT DISTINCT ON (flux, magasin_id) flux, magasin_id, debut, statut\nFROM imports_log\nORDER BY flux, magasin_id, debut DESC;`, note: 'Spécifique à Postgres, très pratique.', tags: 'latest dernier' },
+  { cat: 'Fenêtres', title: 'Classement rank / dense_rank', sql: `SELECT rayon, libelle, prix_ttc,\n       rank()       OVER (PARTITION BY rayon ORDER BY prix_ttc DESC),\n       dense_rank() OVER (PARTITION BY rayon ORDER BY prix_ttc DESC)\nFROM produits;`, note: 'rank : 1,1,3 · dense_rank : 1,1,2 · row_number : 1,2,3', tags: 'top classement' },
+  { cat: 'Fenêtres', title: 'Valeur précédente (lag)', sql: `SELECT magasin_id, debut::date, nb_lignes,\n       nb_lignes - lag(nb_lignes) OVER (PARTITION BY magasin_id ORDER BY debut) AS delta\nFROM imports_log WHERE flux = 'VENTES';`, note: 'lead() pour la suivante.', tags: 'évolution précédent' },
+  { cat: 'Fenêtres', title: 'Cumul (running total)', sql: `SELECT date_mvt, qte,\n       sum(qte) OVER (ORDER BY date_mvt) AS stock_courant\nFROM mouvements_stock\nWHERE magasin_id = 1 AND produit_id = 12;`, tags: 'cumul somme' },
+  { cat: 'Fenêtres', title: 'Part du total', sql: `SELECT magasin_id, sum(total_ttc) AS ca,\n       round(100.0 * sum(total_ttc) / sum(sum(total_ttc)) OVER (), 1) AS pct\nFROM tickets_caisse WHERE statut = 'VALIDE'\nGROUP BY 1;`, note: 'sum(sum(x)) OVER () : fenêtre appliquée après le GROUP BY.', tags: 'pourcentage' },
+
+  // Dates
+  { cat: 'Dates', title: 'Jour civil à Paris', sql: `SELECT (date_ticket AT TIME ZONE 'Europe/Paris')::date AS jour, count(*)\nFROM tickets_caisse GROUP BY 1 ORDER BY 1;`, note: 'timestamptz = instant absolu ; AT TIME ZONE le convertit en heure locale.', tags: 'fuseau timezone' },
+  { cat: 'Dates', title: 'Calendrier complet', sql: `SELECT d::date FROM generate_series(date '2026-10-01', date '2026-10-31', interval '1 day') d;`, note: 'À LEFT JOINer pour faire apparaître les jours sans données.', tags: 'generate_series jours manquants' },
+  { cat: 'Dates', title: 'Tronquer à la semaine / au mois', sql: `SELECT date_trunc('week', date_ticket)::date AS lundi,\n       to_char(date_ticket, 'IYYY-"S"IW') AS sem_iso, count(*)\nFROM tickets_caisse GROUP BY 1, 2 ORDER BY 1;`, tags: 'semaine iso mois' },
+  { cat: 'Dates', title: 'Durée et âge', sql: `SELECT fichier, fin - debut AS duree, now() - debut AS il_y_a\nFROM imports_log ORDER BY debut DESC LIMIT 5;`, tags: 'interval durée' },
+  { cat: 'Dates', title: 'Nom du jour en français', sql: `SELECT (ARRAY['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'])[extract(isodow FROM date_ticket)] AS jour, count(*)\nFROM tickets_caisse GROUP BY extract(isodow FROM date_ticket), 1 ORDER BY extract(isodow FROM date_ticket);`, note: "to_char(d, 'FMDay') sort en anglais : TMDay ne traduit que si la locale fr_FR est installée sur le serveur.", tags: 'jour semaine langue locale lc_time' },
+  { cat: 'Dates', title: 'Locales installées', sql: `SELECT collname FROM pg_collation WHERE collprovider = 'c';\nSELECT name, setting FROM pg_settings WHERE name LIKE 'lc_%';`, note: "Test décisif : SET lc_time = 'fr_FR.UTF-8'; erreur = locale absente du serveur.", tags: 'locale langue lc_time collation' },
+  { cat: 'Dates', title: 'Fonction jour en français', sql: `CREATE FUNCTION jour_fr(d date) RETURNS text LANGUAGE sql IMMUTABLE\n  RETURN (ARRAY['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'])[extract(isodow FROM d)];\nSELECT jour_fr(date '2026-10-17');  -- samedi`, note: "Un cast 'Saturday'::enum ne traduit pas : fonction ou table de correspondance.", tags: 'enum traduction jour fonction' },
+  { cat: 'Dates', title: 'Fin de mois, âge', sql: `SELECT (date_trunc('month', current_date) + interval '1 month - 1 day')::date AS fin_mois,\n       age(date '2026-10-15', date '1990-03-02') AS age;`, tags: 'eomonth dernier jour age' },
+  { cat: 'Dates', title: 'Fuseau de la session', sql: `SHOW timezone;`, note: "date_ticket::date dépend de ce paramètre : préférer AT TIME ZONE explicite.", tags: 'timezone' },
+
+  // Texte et conversions
+  { cat: 'Texte', title: 'Normaliser pour comparer', sql: `SELECT lower(trim(email)), count(*)\nFROM clients_fidelite WHERE email IS NOT NULL\nGROUP BY 1 HAVING count(*) > 1;`, note: 'unaccent() en plus pour les accents (extension).', tags: 'doublons casse espaces' },
+  { cat: 'Texte', title: 'Conversion sûre', sql: `SELECT prix,\n       CASE WHEN replace(trim(prix), ',', '.') ~ '^-?[0-9]+(\\.[0-9]+)?$'\n            THEN replace(trim(prix), ',', '.')::numeric END AS prix_num\nFROM import_produits_staging;`, note: 'Tester le format avant le cast pour éviter « invalid input syntax ».', tags: 'cast numeric' },
+  { cat: 'Texte', title: 'Division décimale et division par zéro', sql: `SELECT nb_rejets, nb_lignes,\n       round(100.0 * nb_rejets / nullif(nb_lignes, 0), 1) AS pct\nFROM imports_log LIMIT 5;`, note: 'int / int = division entière. nullif(x, 0) renvoie NULL au lieu d’une erreur.', tags: 'nullif pourcentage' },
+  { cat: 'Texte', title: 'Valeur par défaut', sql: `SELECT id, coalesce(email, '(sans email)') FROM clients_fidelite LIMIT 5;`, tags: 'coalesce null' },
+
+  // Structurer
+  { cat: 'Structurer', title: 'CTE (WITH) en étapes', sql: `WITH ca AS (\n  SELECT magasin_id, sum(total_ttc) AS ca\n  FROM tickets_caisse WHERE statut = 'VALIDE' GROUP BY 1\n)\nSELECT m.nom, ca.ca FROM ca JOIN magasins m ON m.id = ca.magasin_id;`, note: 'Une étape = un résultat intermédiaire nommé, testable seul.', tags: 'with sous-requête' },
+  { cat: 'Structurer', title: 'Agréger avant de joindre', sql: `SELECT p.libelle, v.qte\nFROM produits p\nJOIN (SELECT produit_id, sum(qte) AS qte FROM lignes_ticket GROUP BY 1) v\n  ON v.produit_id = p.id\nORDER BY v.qte DESC LIMIT 10;`, note: 'Évite les fan-out quand on joint plusieurs tables 1-N.', tags: 'fan-out' },
+  { cat: 'Structurer', title: 'CASE (catégoriser)', sql: `SELECT id, total_ttc,\n       CASE WHEN total_ttc < 20 THEN 'petit'\n            WHEN total_ttc < 80 THEN 'moyen'\n            ELSE 'gros' END AS panier\nFROM tickets_caisse LIMIT 10;`, note: 'Le premier WHEN vrai gagne : l’ordre compte.', tags: 'if condition' },
+
+  // JSON
+  { cat: 'JSON', title: 'Lire un champ jsonb', sql: `SELECT j -> 'client' ->> 'nom' AS nom, (j ->> 'total')::numeric AS total\nFROM (SELECT '{"client": {"nom": "Durand"}, "total": 42.5}'::jsonb AS j) t;`, note: '-> renvoie du jsonb, ->> du texte (à convertir pour calculer).', tags: 'json jsonb champ cle' },
+  { cat: 'JSON', title: 'Ligne en JSON, lignes en tableau', sql: `SELECT to_jsonb(m) FROM magasins m WHERE id = 1;\nSELECT jsonb_agg(code ORDER BY id) FROM magasins;`, tags: 'json export to_jsonb jsonb_agg' },
+
+  // Modifier
+  { cat: 'Modifier', title: 'Correction encadrée', sql: `BEGIN;\nSELECT count(*) FROM produits WHERE id > 400;      -- 1. compter\nUPDATE produits SET actif = false WHERE id > 400   -- 2. modifier\nRETURNING id, ean, actif;\nSELECT count(*) FROM produits WHERE actif = false; -- 3. contrôler\nROLLBACK;                                          -- 4. ou COMMIT`, note: 'Le nombre de l’UPDATE doit être égal au comptage.', tags: 'update transaction rollback' },
+  { cat: 'Modifier', title: 'Sauvegarder avant de toucher', sql: `CREATE TEMP TABLE sauvegarde AS\nSELECT * FROM produits WHERE id > 400;\nSELECT * FROM sauvegarde;`, note: 'En prod : table de sauvegarde nommée avec le n° de ticket.', tags: 'backup' },
+  { cat: 'Modifier', title: 'UPDATE avec jointure', sql: `BEGIN;\nUPDATE lignes_ticket l SET produit_id = 12\nFROM produits p\nWHERE p.id = l.produit_id AND p.id = 401;\nROLLBACK;`, tags: 'update from' },
+  { cat: 'Modifier', title: 'INSERT … SELECT', sql: `BEGIN;\nINSERT INTO produits (ean, libelle, rayon, prix_ttc, tva)\nSELECT ean, libelle, rayon, 1.00, 5.50\nFROM import_produits_staging WHERE num_ligne = 1\nRETURNING *;\nROLLBACK;`, tags: 'import insert' },
+
+  { cat: 'Modifier', title: 'Insérer ou mettre à jour (upsert)', sql: `BEGIN;\nINSERT INTO stocks (magasin_id, produit_id, qte, maj_le)\nVALUES (3, 12, 40, now())\nON CONFLICT (magasin_id, produit_id)\nDO UPDATE SET qte = EXCLUDED.qte, maj_le = EXCLUDED.maj_le\nRETURNING *, (xmax = 0) AS insere;\nROLLBACK;`, note: "EXCLUDED = la ligne qu'on voulait insérer. La colonne du ON CONFLICT doit porter une contrainte UNIQUE.", tags: 'upsert merge on conflict doublon duplicate key' },
+
+  // Perf & supervision
+  { cat: 'Perf & supervision', title: 'Pagination par clé (keyset)', sql: `SELECT id, date_ticket, total_ttc FROM tickets_caisse\nWHERE (date_ticket, id) < (timestamptz '2026-09-10 12:00+02', 5000)\nORDER BY date_ticket DESC, id DESC\nLIMIT 20;`, note: "On repart de la dernière ligne vue au lieu d'un OFFSET : coût constant, pas de doublon. Index sur (date_ticket, id).", tags: 'pagination seek offset limit page suivante' },
+  { cat: 'Perf & supervision', title: 'Requêtes les plus coûteuses', sql: `SELECT calls, round(total_exec_time::numeric) AS total_ms,\n       round(mean_exec_time::numeric, 1) AS moy_ms, left(query, 80) AS requete\nFROM pg_stat_statements\nORDER BY total_exec_time DESC LIMIT 10;`, note: "Extension pg_stat_statements : shared_preload_libraries + CREATE EXTENSION. Absente du kit.", tags: 'lent top requetes statistiques slow' },
+  { cat: 'Perf & supervision', title: 'Lire un plan', sql: `EXPLAIN (ANALYZE, BUFFERS)\nSELECT * FROM lignes_ticket WHERE produit_id = 150;`, note: 'Seq Scan + gros « Rows Removed by Filter » = index manquant. ANALYZE exécute vraiment la requête.', tags: 'explain index lent' },
+  { cat: 'Perf & supervision', title: 'Requêtes en cours', sql: `SELECT pid, usename, state, now() - query_start AS duree, left(query, 60)\nFROM pg_stat_activity\nWHERE state <> 'idle' ORDER BY duree DESC;`, tags: 'activité bloqué' },
+  { cat: 'Perf & supervision', title: 'Qui bloque qui', sql: `SELECT pid, pg_blocking_pids(pid) AS bloque_par, left(query, 60)\nFROM pg_stat_activity\nWHERE cardinality(pg_blocking_pids(pid)) > 0;`, note: 'pg_cancel_backend(pid) annule ; pg_terminate_backend(pid) coupe (à faire valider).', tags: 'verrou lock' },
+  { cat: 'Perf & supervision', title: 'Dernier passage des flux', sql: `SELECT DISTINCT ON (flux, magasin_id) flux, magasin_id, debut, statut, message\nFROM imports_log\nORDER BY flux, magasin_id, debut DESC;`, tags: 'batch import supervision' },
+]

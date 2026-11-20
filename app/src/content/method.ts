@@ -1,0 +1,165 @@
+export type Step = { title: string; think: string; sql?: string; check: string }
+export type Worked = { id: string; title: string; question: string; phrase: string; grain: string; pattern: string; steps: Step[] }
+
+/** Traduction « phrase métier » → brique SQL : le vocabulaire qui débloque la construction. */
+export type Pattern = { phrase: string; brique: string; tickets: string; demande: string; sql: string }
+
+export const patterns: Pattern[] = [
+  { phrase: '« ceux qui n’ont pas / jamais … »', brique: 'NOT EXISTS (SELECT 1 … WHERE lien)', tickets: 'T02, T15',
+    demande: 'Les clients fidélité qui n’ont jamais utilisé leur carte.',
+    sql: `SELECT c.num_carte, c.nom, c.prenom\nFROM clients_fidelite c\nWHERE NOT EXISTS (SELECT 1 FROM tickets_caisse t WHERE t.carte_fidelite = c.num_carte)\nORDER BY c.num_carte;` },
+  { phrase: '« ceux qui ont au moins un … »', brique: 'EXISTS (…), sans JOIN qui duplique', tickets: 'T10',
+    demande: 'Les produits qui ont eu au moins une promo (chaque produit une seule fois).',
+    sql: `SELECT p.id, p.libelle\nFROM produits p\nWHERE EXISTS (SELECT 1 FROM prix_promos pp WHERE pp.produit_id = p.id)\nORDER BY p.id;` },
+  { phrase: '« en double », « plusieurs fois »', brique: 'GROUP BY clé HAVING count(*) > 1', tickets: 'T05, T11',
+    demande: 'Les EAN portés par plusieurs fiches produit.',
+    sql: `SELECT ean, count(*) AS nb_fiches, string_agg(id::text, ', ' ORDER BY id) AS fiches\nFROM produits\nGROUP BY ean\nHAVING count(*) > 1;` },
+  { phrase: '« pour chaque X, le dernier / le plus récent »', brique: 'DISTINCT ON (X) … ORDER BY X, date DESC', tickets: 'T08',
+    demande: 'Pour chaque caisse, l’heure de son dernier ticket (une caisse muette saute aux yeux).',
+    sql: `SELECT DISTINCT ON (magasin_id, num_caisse) magasin_id, num_caisse, date_ticket AS dernier_ticket\nFROM tickets_caisse\nORDER BY magasin_id, num_caisse, date_ticket DESC;` },
+  { phrase: '« pour chaque X, les N premiers »', brique: 'row_number() OVER (PARTITION BY X ORDER BY …) puis rn <= N', tickets: 'T14',
+    demande: 'Les 2 plus gros tickets de chaque magasin.',
+    sql: `SELECT * FROM (\n  SELECT magasin_id, id, total_ttc,\n         row_number() OVER (PARTITION BY magasin_id ORDER BY total_ttc DESC) AS rn\n  FROM tickets_caisse WHERE statut = 'VALIDE'\n) x\nWHERE rn <= 2\nORDER BY magasin_id, rn;` },
+  { phrase: '« comparer des lignes d’une même table entre elles », « paires »', brique: 'auto-jointure : t a JOIN t b ON … AND a.id < b.id', tickets: 'T10',
+    demande: 'Les paires de clients qui ont le même nom et le même prénom (homonymes ou doublons ?).',
+    sql: `SELECT a.num_carte, b.num_carte, a.nom, a.prenom\nFROM clients_fidelite a\nJOIN clients_fidelite b\n  ON lower(b.nom) = lower(a.nom) AND lower(b.prenom) = lower(a.prenom)\n AND a.id < b.id\nWHERE a.nom ILIKE 'durand' AND a.prenom = 'Pierre'\nLIMIT 10;` },
+  { phrase: '« tous les jours, même ceux sans rien »', brique: 'generate_series(…) d LEFT JOIN … ON (filtres dans le ON)', tickets: 'T03',
+    demande: 'Nombre de cartes fidélité créées chaque jour de septembre 2026, jours à 0 compris.',
+    sql: `SELECT d::date AS jour, count(c.id) AS nouvelles_cartes\nFROM generate_series(date '2026-09-01', date '2026-09-30', interval '1 day') d\nLEFT JOIN clients_fidelite c ON c.cree_le = d::date\nGROUP BY d\nORDER BY d;` },
+  { phrase: '« par rapport à la fois précédente »', brique: 'lag(x) OVER (PARTITION BY … ORDER BY …)', tickets: 'T14',
+    demande: 'Pour le flux VENTES de Saintes, le nombre de lignes reçues chaque nuit et l’écart avec la nuit d’avant.',
+    sql: `SELECT debut::date AS nuit, nb_lignes,\n       nb_lignes - lag(nb_lignes) OVER (ORDER BY debut) AS ecart_veille\nFROM imports_log\nWHERE flux = 'VENTES' AND magasin_id = 2\nORDER BY debut;` },
+  { phrase: '« pareil malgré majuscules / espaces »', brique: 'lower(trim(col)) partout où on compare', tickets: 'T11',
+    demande: 'Les rayons du fichier fournisseur qui ne correspondent à aucun rayon connu, même en ignorant la casse.',
+    sql: `SELECT DISTINCT s.rayon,\n       EXISTS (SELECT 1 FROM produits p WHERE p.rayon = s.rayon) AS exact,\n       EXISTS (SELECT 1 FROM produits p WHERE lower(trim(p.rayon)) = lower(trim(s.rayon))) AS en_ignorant_la_casse\nFROM import_produits_staging s\nORDER BY 1;` },
+  { phrase: '« ça ne colle pas entre A et B »', brique: 'recalculer B depuis le détail, comparer : HAVING a <> sum(…)', tickets: 'T01, T07',
+    demande: 'Les articles dont le stock affiché diffère de la somme de leurs mouvements.',
+    sql: `SELECT s.magasin_id, s.produit_id, s.qte AS affiche, sum(m.qte) AS recalcule\nFROM stocks s\nJOIN mouvements_stock m USING (magasin_id, produit_id)\nGROUP BY s.magasin_id, s.produit_id, s.qte\nHAVING s.qte <> sum(m.qte)\nORDER BY s.magasin_id, s.produit_id\nLIMIT 20;` },
+  { phrase: '« avant / après une date »', brique: 'sum(x) FILTER (WHERE d < …), sum(x) FILTER (WHERE d >= …)', tickets: 'T05',
+    demande: 'Nombre de tickets par magasin avant et après le 1er octobre.',
+    sql: `SELECT magasin_id,\n       count(*) FILTER (WHERE date_ticket <  '2026-10-01') AS septembre,\n       count(*) FILTER (WHERE date_ticket >= '2026-10-01') AS octobre\nFROM tickets_caisse\nWHERE statut = 'VALIDE'\nGROUP BY magasin_id ORDER BY magasin_id;` },
+  { phrase: '« les lignes qui ne respectent pas la règle »', brique: "CASE WHEN règle violée THEN 'motif' END, une colonne par règle", tickets: 'T12',
+    demande: 'Les clients fidélité avec une fiche incomplète ou suspecte, et pourquoi.',
+    sql: `SELECT num_carte, nom, email,\n       CASE WHEN email IS NULL THEN 'pas d''email' END AS r1,\n       CASE WHEN email <> lower(trim(email)) THEN 'email mal saisi' END AS r2,\n       CASE WHEN magasin_id IS NULL THEN 'pas de magasin' END AS r3\nFROM clients_fidelite\nWHERE email IS NULL OR email <> lower(trim(email)) OR magasin_id IS NULL\nORDER BY num_carte\nLIMIT 20;` },
+]
+
+export const worked: Worked[] = [
+  {
+    id: 'm-promos',
+    title: 'Les promos qui se chevauchent',
+    question: '« Le CA promo est trop gros sur certains produits. Y a-t-il des promos en double ? »',
+    phrase: 'Je veux les PAIRES de promos d’un même produit, sur le même périmètre, dont les périodes se recouvrent.',
+    grain: 'une ligne = une paire de promos (A, B)',
+    pattern: 'Le mot « paire » = comparer des lignes de la même table entre elles = auto-jointure.',
+    steps: [
+      {
+        title: '1. Regarder les données brutes',
+        think: 'Avant toute requête maligne : à quoi ressemble la table ? Quelles colonnes portent « produit », « période », « périmètre » ?',
+        sql: `SELECT * FROM prix_promos ORDER BY produit_id, debut LIMIT 20;`,
+        check: 'Colonnes utiles repérées : produit_id, magasin_id (NULL = national), debut, fin.',
+      },
+      {
+        title: '2. Repérer des candidats (requête simple)',
+        think: 'Question plus facile d’abord : quels produits ont plusieurs promos ? Ça ne prouve rien, mais ça réduit le terrain.',
+        sql: `SELECT produit_id, count(*) FROM prix_promos GROUP BY produit_id HAVING count(*) > 1;`,
+        check: '3 produits (25, 88, 91). Je sais maintenant combien de résultats attendre au maximum.',
+      },
+      {
+        title: '3. Fabriquer toutes les paires d’un même produit',
+        think: 'Pour comparer deux lignes, il faut les avoir sur UNE même ligne : je joins la table avec elle-même (alias a et b), sur le produit.',
+        sql: `SELECT a.id AS promo_a, b.id AS promo_b, a.produit_id\nFROM prix_promos a\nJOIN prix_promos b ON b.produit_id = a.produit_id\nWHERE a.produit_id IN (25, 88, 91)\nORDER BY 3, 1, 2;`,
+        check: 'Trop de lignes : chaque promo est appariée avec elle-même (a = b), et chaque paire apparaît deux fois (A,B) et (B,A).',
+      },
+      {
+        title: '4. Nettoyer les paires',
+        think: 'a.id < b.id supprime à la fois les paires « avec soi-même » et les doublons inversés.',
+        sql: `SELECT a.id AS promo_a, b.id AS promo_b, a.produit_id\nFROM prix_promos a\nJOIN prix_promos b ON b.produit_id = a.produit_id AND a.id < b.id\nORDER BY 3;`,
+        check: 'Exactement 3 paires, une par produit candidat. Cohérent avec l’étape 2.',
+      },
+      {
+        title: '5. Ajouter la règle « les périodes se recouvrent »',
+        think: 'Je dessine deux segments sur une frise : ils se touchent si A commence avant la fin de B ET B commence avant la fin de A.',
+        sql: `SELECT a.id, a.debut, a.fin, b.id, b.debut, b.fin\nFROM prix_promos a\nJOIN prix_promos b ON b.produit_id = a.produit_id AND a.id < b.id\n AND a.debut <= b.fin AND b.debut <= a.fin;`,
+        check: 'Je vérifie une paire à la main sur la frise : 15/09→28/09 et 25/09→02/10 se recouvrent bien du 25 au 28.',
+      },
+      {
+        title: '6. Ajouter la règle « même périmètre »',
+        think: 'Une promo du magasin 1 et une du magasin 2 ne se gênent pas. Même magasin, ou l’une des deux nationale (NULL). NULL = NULL est inconnu → IS NOT DISTINCT FROM.',
+        sql: `SELECT a.produit_id, a.id AS promo_a, b.id AS promo_b,\n       greatest(a.debut, b.debut) AS chevauche_du, least(a.fin, b.fin) AS chevauche_au\nFROM prix_promos a\nJOIN prix_promos b ON b.produit_id = a.produit_id AND a.id < b.id\n AND a.debut <= b.fin AND b.debut <= a.fin\n AND (a.magasin_id IS NOT DISTINCT FROM b.magasin_id OR a.magasin_id IS NULL OR b.magasin_id IS NULL);`,
+        check: 'Résultat final, avec la période exacte du conflit : prêt à envoyer au marketing.',
+      },
+    ],
+  },
+  {
+    id: 'm-flux',
+    title: 'Le dernier passage de chaque flux',
+    question: '« Chaque matin, je veux l’état du dernier passage de chaque flux pour chaque magasin. »',
+    phrase: 'Pour chaque (flux, magasin), je veux LA ligne la plus récente de imports_log.',
+    grain: 'une ligne = un couple (flux, magasin)',
+    pattern: '« Pour chaque X, le dernier » = DISTINCT ON ou row_number() = 1.',
+    steps: [
+      {
+        title: '1. Voir la table',
+        think: 'Une ligne de imports_log = un passage. Plusieurs passages par couple (un par nuit).',
+        sql: `SELECT flux, magasin_id, debut, statut, nb_lignes, nb_rejets FROM imports_log ORDER BY debut DESC LIMIT 10;`,
+        check: '4 flux × 4 magasins = 16 couples. Le résultat final devra faire 16 lignes.',
+      },
+      {
+        title: '2. Garder le dernier par couple',
+        think: 'Je trie par couple puis du plus récent au plus ancien ; DISTINCT ON garde la première ligne de chaque couple.',
+        sql: `SELECT DISTINCT ON (flux, magasin_id) flux, magasin_id, debut, statut, nb_lignes, nb_rejets\nFROM imports_log\nORDER BY flux, magasin_id, debut DESC;`,
+        check: '16 lignes : compte bon.',
+      },
+      {
+        title: '3. Ajouter le calcul et l’alerte',
+        think: 'Je n’ajoute qu’une chose à la fois. D’abord le taux (attention division entière et division par zéro), puis le CASE dans l’ordre de priorité.',
+        sql: `SELECT DISTINCT ON (flux, magasin_id) flux, magasin_id, debut, statut,\n       round(100.0 * nb_rejets / nullif(nb_lignes, 0), 1) AS pct_rejet,\n       CASE WHEN statut = 'ERREUR' THEN 'ERREUR'\n            WHEN statut = 'EN_COURS' AND debut < timestamptz '2026-10-25 08:00' - interval '1 hour' THEN 'BLOQUÉ'\n            WHEN nb_rejets::numeric / nullif(nb_lignes, 0) > 0.05 THEN 'REJETS'\n            ELSE 'OK' END AS alerte\nFROM imports_log\nORDER BY flux, magasin_id, debut DESC;`,
+        check: 'Je contrôle que je retrouve les incidents connus : STOCKS/3 en ERREUR, PRIX/4 BLOQUÉ, PRODUITS/2 REJETS.',
+      },
+    ],
+  },
+  {
+    id: 'm-jours',
+    title: 'Un rapport sans jours manquants',
+    question: '« Le rapport de CA de Mont-de-Marsan saute des jours. On veut tous les jours, avec 0. »',
+    phrase: 'Pour chaque jour d’octobre (même sans vente), le CA validé du magasin 4.',
+    grain: 'une ligne = un jour',
+    pattern: '« Tous les X, même vides » : la liste des X ne vient pas des données → generate_series, puis LEFT JOIN.',
+    steps: [
+      {
+        title: '1. Fabriquer la colonne vertébrale',
+        think: 'Le résultat a une ligne par jour : je commence par produire ces lignes, indépendamment des ventes.',
+        sql: `SELECT d::date AS jour FROM generate_series(date '2026-10-01', date '2026-10-24', interval '1 day') d;`,
+        check: '24 lignes. Ce nombre ne doit plus jamais baisser dans les étapes suivantes.',
+      },
+      {
+        title: '2. Accrocher les ventes avec LEFT JOIN',
+        think: 'LEFT pour garder tous les jours. Toutes les conditions sur les tickets vont dans le ON, sinon les jours vides disparaissent.',
+        sql: `SELECT d::date AS jour, count(t.id) AS nb, coalesce(sum(t.total_ttc), 0) AS ca\nFROM generate_series(date '2026-10-01', date '2026-10-24', interval '1 day') d\nLEFT JOIN tickets_caisse t\n       ON t.magasin_id = 4 AND t.statut = 'VALIDE'\n      AND t.date_ticket >= d AND t.date_ticket < d + interval '1 day'\nGROUP BY d ORDER BY d;`,
+        check: 'Toujours 24 lignes ; les dimanches et le 6/10 (inventaire) sont à 0. count(t.id) et non count(*), sinon les jours vides compteraient 1.',
+      },
+    ],
+  },
+  {
+    id: 'm-top',
+    title: 'Le top 3 par rayon',
+    question: '« Les 3 meilleurs produits de chaque rayon en octobre. »',
+    phrase: 'Je calcule le CA par produit, je classe dans chaque rayon, je garde les rangs 1 à 3.',
+    grain: 'une ligne = un produit classé',
+    pattern: '« Les N premiers par X » = row_number/rank dans une sous-requête, filtre dehors.',
+    steps: [
+      {
+        title: '1. Le CA par produit (sans classement)',
+        think: 'Je construis d’abord la mesure. Une ligne de vente = qte × prix − remise ; je regroupe par produit.',
+        sql: `SELECT p.rayon, p.id, p.libelle, sum(l.qte * l.prix_unitaire_ttc - l.remise) AS ca\nFROM lignes_ticket l\nJOIN tickets_caisse t ON t.id = l.ticket_id\nJOIN produits p ON p.id = l.produit_id\nWHERE t.statut = 'VALIDE' AND t.date_ticket >= '2026-10-01' AND t.date_ticket < '2026-11-01'\nGROUP BY p.rayon, p.id, p.libelle\nORDER BY ca DESC LIMIT 10;`,
+        check: 'Les montants sont plausibles (quelques milliers d’euros par produit sur le mois, pour ~20 000 tickets).',
+      },
+      {
+        title: '2. Classer dans chaque rayon, puis filtrer',
+        think: 'La fonction de fenêtre se calcule après le GROUP BY ; je ne peux pas la filtrer dans le WHERE → je mets l’étape 1 dans une CTE et je filtre dehors.',
+        sql: `WITH ca AS (\n  SELECT p.rayon, p.id, p.libelle, sum(l.qte * l.prix_unitaire_ttc - l.remise) AS ca\n  FROM lignes_ticket l\n  JOIN tickets_caisse t ON t.id = l.ticket_id\n  JOIN produits p ON p.id = l.produit_id\n  WHERE t.statut = 'VALIDE' AND t.date_ticket >= '2026-10-01' AND t.date_ticket < '2026-11-01'\n  GROUP BY p.rayon, p.id, p.libelle\n), classe AS (\n  SELECT *, rank() OVER (PARTITION BY rayon ORDER BY ca DESC) AS rang FROM ca\n)\nSELECT * FROM classe WHERE rang <= 3 ORDER BY rayon, rang;`,
+        check: '6 rayons × 3 = 18 lignes (plus s’il y a des ex aequo, avec rank).',
+      },
+    ],
+  },
+]
