@@ -68,3 +68,20 @@ export function statementAt(sql: string, pos: number): Statement | null {
   const before = list.filter((s) => s.from < pos)
   return before.length ? before[before.length - 1] : list[0]
 }
+
+const TX_CONTROL = new Set(['BEGIN', 'START', 'COMMIT', 'END', 'ROLLBACK', 'ABORT', 'SAVEPOINT', 'RELEASE', 'PREPARE'])
+
+/** Premier mot-clé d'une instruction, commentaires de tête ignorés, en majuscules. */
+export function firstKeyword(text: string): string {
+  const code = text.replace(/^(\s|--[^\n]*\n?|\/\*[\s\S]*?\*\/)*/, '')
+  return (/^[A-Za-z_]+/.exec(code)?.[0] ?? '').toUpperCase()
+}
+
+/** Première instruction de contrôle de transaction (BEGIN, COMMIT, SAVEPOINT…) trouvée, ou null. */
+export function transactionControl(sql: string): string | null {
+  for (const s of splitStatements(sql)) {
+    const kw = firstKeyword(s.text)
+    if (TX_CONTROL.has(kw)) return kw
+  }
+  return null
+}

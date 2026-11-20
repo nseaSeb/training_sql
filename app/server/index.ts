@@ -2,6 +2,8 @@ import express from 'express'
 import pg from 'pg'
 import { existsSync, readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { checkExercise } from './check'
+import { exercises } from '../src/content/exercises'
 
 // Dates, timestamps et intervalles renvoyés tels que Postgres les affiche
 // (sinon node-pg les convertit en Date JS et l'UI affiche de l'UTC).
@@ -101,12 +103,22 @@ if (SITE_PASSWORD) {
 
 app.use(express.json({ limit: '1mb' }))
 
-app.post('/api/query', async (req, res) => {
-  const sql = String(req.body?.sql ?? '')
+// Méta-commandes psql (\echo, \pset…) remplacées par des blancs : les positions d'erreur restent alignées sur le texte envoyé
+const stripMeta = (sql: unknown) =>
+  String(sql ?? '')
     .split('\n')
-    // Méta-commandes psql (\echo, \pset…) remplacées par des blancs : les positions d'erreur restent alignées sur le texte envoyé
     .map((line) => (line.trimStart().startsWith('\\') ? ' '.repeat(line.length) : line))
     .join('\n')
+
+/** Remet une connexion à neuf (SET, tables TEMP, verrous consultatifs) avant de la rendre au pool. */
+async function release(client: pg.PoolClient) {
+  await client.query('ROLLBACK').catch(() => {})
+  const clean = await client.query('DISCARD ALL').then(() => true, () => false)
+  client.release(!clean)
+}
+
+app.post('/api/query', async (req, res) => {
+  const sql = stripMeta(req.body?.sql)
   const client = await pool.connect()
   const started = performance.now()
   // NOTICE / WARNING émis pendant la requête de l'utilisateur seulement (pas pendant le ROLLBACK de nettoyage)
@@ -137,10 +149,21 @@ app.post('/api/query', async (req, res) => {
       notices,
     })
   } finally {
-    await client.query('ROLLBACK').catch(() => {}) // ferme toute transaction oubliée (BEGIN sans fin)
-    // Remet la connexion à neuf (SET, tables TEMP, verrous consultatifs) avant de la rendre au pool
-    const clean = await client.query('DISCARD ALL').then(() => true, () => false)
-    client.release(!clean)
+    await release(client) // ferme toute transaction oubliée (BEGIN sans fin)
+  }
+})
+
+/** Correction d'un exercice : réponse et solution exécutées chacune dans une transaction annulée. */
+app.post('/api/check', async (req, res) => {
+  const ex = exercises.find((e) => e.id === req.body?.id)
+  if (!ex) return res.status(404).json({ error: 'exercice inconnu' })
+  const client = await pool.connect()
+  try {
+    res.json(await checkExercise(client, ex, stripMeta(req.body?.sql)))
+  } catch (e) {
+    res.status(500).json({ ok: false, error: true, reason: (e as Error).message })
+  } finally {
+    await release(client)
   }
 })
 

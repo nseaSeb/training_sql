@@ -25,7 +25,7 @@ jobs:
       - run: npm test
 
   kit:
-    name: SQL kit loads and solutions run
+    name: SQL kit and exercises against PostgreSQL
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -50,3 +50,15 @@ jobs:
       - run: psql -v ON_ERROR_STOP=1 -q -f docker/99_settings.sql
       - run: psql -v ON_ERROR_STOP=1 -q -f kit/01_setup_base.sql
       - run: psql -v ON_ERROR_STOP=1 -q -f kit/03_solutions.sql > /dev/null
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: app
+      - name: Every exercise solution passes its own check, wrong answers fail
+        run: npm run test:exercises
+        working-directory: app
+        env:
+          DATABASE_URL: postgres://kit:kit@localhost:5432/training_sql

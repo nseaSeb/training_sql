@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { splitStatements, statementAt } from './statements.ts'
+import { firstKeyword, splitStatements, statementAt, transactionControl } from './statements.ts'
 
 const texts = (sql: string) => splitStatements(sql).map((s) => s.text.trim())
 
@@ -53,4 +53,13 @@ test('statementAt : juste après un « ; » ou sur une ligne vide, la précéden
   assert.equal(statementAt(sql, sql.indexOf(';') + 1)?.text.trim(), 'SELECT 1;')
   assert.equal(statementAt(sql, sql.length)?.text.trim(), 'SELECT 2;')
   assert.equal(statementAt('', 0), null)
+})
+
+test('contrôle de transaction détecté sur le premier mot-clé, commentaires ignorés', () => {
+  assert.equal(transactionControl('SELECT 1;'), null)
+  assert.equal(transactionControl("UPDATE t SET x = 'commit';"), null)
+  assert.equal(transactionControl('-- on valide\n/* bloc */ commit;'), 'COMMIT')
+  assert.equal(transactionControl('UPDATE t SET x = 1; Rollback'), 'ROLLBACK')
+  assert.equal(transactionControl('start transaction; SELECT 1;'), 'START')
+  assert.equal(firstKeyword('  -- x\n  select 1'), 'SELECT')
 })

@@ -7,10 +7,11 @@ const plan: { when: string; what: string; page: Page; duration: string }[] = [
   { when: 'Étape 2', what: 'Lexique : « Avant tout : les bases », puis survol des fiches', page: 'lexique', duration: '30 min' },
   { when: 'Étape 3', what: 'Méthode : traiter une demande pas à pas', page: 'methode', duration: '20 min' },
   { when: 'Étape 4', what: 'Cours 1 à 4 : modèle mental, schéma, jointures, NULL', page: 'cours', duration: '45 min' },
-  { when: 'Étape 5', what: 'Tickets T01 à T04 (échauffement) dans le playground', page: 'tickets', duration: '45 min' },
-  { when: 'Étape 6', what: 'Tickets T05 à T08 : doublons, flux, batch', page: 'tickets', duration: '1 h' },
-  { when: 'Étape 7', what: 'Cours avancés : fenêtres, dates, EXPLAIN', page: 'cours', duration: '1 h' },
-  { when: 'Étape 8', what: 'Cheatsheet, dont les différences PostgreSQL / SQL Server', page: 'cheatsheet', duration: '20 min' },
+  { when: 'Étape 5', what: 'Exercices corrigés automatiquement, niveau débutant puis intermédiaire', page: 'exercices', duration: '45 min' },
+  { when: 'Étape 6', what: 'Tickets T01 à T04 (échauffement) dans le playground', page: 'tickets', duration: '45 min' },
+  { when: 'Étape 7', what: 'Tickets T05 à T08 : doublons, flux, batch', page: 'tickets', duration: '1 h' },
+  { when: 'Étape 8', what: 'Cours avancés : fenêtres, dates, EXPLAIN', page: 'cours', duration: '1 h' },
+  { when: 'Étape 9', what: 'Cheatsheet, dont les différences PostgreSQL / SQL Server', page: 'cheatsheet', duration: '20 min' },
 ]
 
 const questions = [
@@ -81,7 +82,7 @@ export default function Home() {
           ['cours', 'Cours visuels', 'Jointures, NULL, fenêtres, dates, EXPLAIN'],
           ['tickets', '20 tickets', 'Incidents réalistes, indices, solutions'],
           ['playground', 'Playground', 'SQL en direct sur PostgreSQL'],
-          ['cheatsheet', 'Cheatsheet', 'Requêtes types et équivalences SQL Server'],
+          ['exercices', 'Exercices', 'Corrigés automatiquement, 3 niveaux'],
         ] as [Page, string, string][]).map(([page, t, d]) => (
           <button key={page} onClick={() => go(page)} className="rounded-xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
             <div className="font-semibold">{t}</div>

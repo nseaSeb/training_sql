@@ -8,6 +8,7 @@ const Lessons = lazy(() => import('./pages/Lessons'))
 const Method = lazy(() => import('./pages/Method'))
 const Lexicon = lazy(() => import('./pages/Lexicon'))
 const Cheatsheet = lazy(() => import('./pages/Cheatsheet'))
+const Exercises = lazy(() => import('./pages/Exercises'))
 const Tickets = lazy(() => import('./pages/Tickets'))
 const Quiz = lazy(() => import('./pages/Quiz'))
 const Playground = lazy(() => import('./pages/Playground'))
@@ -18,6 +19,7 @@ const pages: { id: Page; label: string; icon: string }[] = [
   { id: 'cours', label: 'Cours', icon: '◧' },
   { id: 'lexique', label: 'Lexique', icon: 'Aa' },
   { id: 'cheatsheet', label: 'Cheatsheet', icon: '⌕' },
+  { id: 'exercices', label: 'Exercices', icon: '✎' },
   { id: 'tickets', label: 'Tickets', icon: '◉' },
   { id: 'playground', label: 'Playground', icon: '▶' },
   { id: 'quiz', label: 'Auto-évaluation', icon: '✓' },
@@ -83,6 +85,7 @@ export default function App() {
             {page === 'methode' && <Method />}
             {page === 'lexique' && <Lexicon />}
             {page === 'cheatsheet' && <Cheatsheet />}
+            {page === 'exercices' && <Exercises />}
             {page === 'tickets' && <Tickets />}
             {page === 'playground' && <Playground sql={sql} setSql={setSql} />}
             {page === 'quiz' && <Quiz />}

@@ -39,3 +39,11 @@ export const deleteSnippet = (id: number) =>
   fetch(`/api/snippets/${id}`, { method: 'DELETE' }).then((r) => {
     if (!r.ok) throw new Error(`HTTP ${r.status}`)
   })
+
+export type CheckResponse =
+  | { ok: true; rows: number; expectedFields: string[] }
+  | { ok: false; reason: string; missing: string[][]; extra: string[][]; expectedFields: string[] }
+  | { ok: false; reason: string; error: true }
+
+export const checkAnswer = (id: string, sql: string): Promise<CheckResponse> =>
+  fetch('/api/check', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id, sql }) }).then((r) => r.json())

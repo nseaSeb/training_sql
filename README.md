@@ -38,8 +38,9 @@ Se connecter en ligne de commande : `docker exec -it training_sql_pg psql -U kit
 
 ## Playground
 
-- Chaque exécution est autonome : une transaction laissée ouverte est annulée à la fin.
-- Un `COMMIT` explicite modifie la base.
+- Une instruction exécutée sans `BEGIN` est validée tout de suite : un `UPDATE` ou un `DELETE` seul modifie la base.
+- Pour tester sans risque, encadrer par `BEGIN; … ROLLBACK;` : une transaction laissée ouverte est annulée à la fin de l'exécution.
+- « Réinitialiser la base » remet le jeu de données d'origine.
 - Les méta-commandes psql (`\echo`, `\pset`…) sont ignorées.
 - L'affichage est limité à 1000 lignes et chaque requête à 15 s.
 
