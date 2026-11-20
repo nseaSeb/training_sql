@@ -7,7 +7,7 @@ import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import pg from 'pg'
 import { exercises } from '../src/content/exercises'
-import { checkExercise, untouched } from './check'
+import { checkExercise } from './check'
 
 const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL ?? 'postgres://kit:kit@localhost:55433/training_sql',
@@ -34,9 +34,7 @@ for (const ex of exercises) {
       }
 
       if (ex.check) {
-        const before = await untouched(client, ex)
-        assert.ok(before.ok, `check en échec sur la base intacte : ${!before.ok ? before.error : ''}`)
-        // Ne rien faire laisse la base intacte : le check ne doit alors pas correspondre à l'attendu
+        // Ne rien faire laisse la base intacte : le check (ou son erreur, si l'objet n'existe pas) ne doit pas correspondre à l'attendu
         const nothing = await checkExercise(client, ex, 'SELECT 1 WHERE false')
         assert.equal(nothing.ok, false, 'ne rien faire passe la vérification')
       }

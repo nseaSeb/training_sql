@@ -36,8 +36,3 @@ export async function checkExercise(client: pg.PoolClient, ex: Exercise, sql: st
   if (!expected.ok) throw new Error(`Solution de ${ex.id} en échec : ${expected.error}`)
   return { ...compareGrids(got.grid, expected.grid, ex.ordered), expectedFields: expected.grid.fields }
 }
-
-/** Résultat du check sur la base non modifiée (pour vérifier qu'un exercice d'écriture ne passe pas à vide). */
-export async function untouched(client: pg.PoolClient, ex: Exercise): Promise<Side> {
-  return ex.check ? runSide(client, 'SELECT 1', ex.check) : { ok: false, error: 'pas de check' }
-}
