@@ -2,11 +2,21 @@
 
 [![CI](https://github.com/nseaSeb/training_sql/actions/workflows/ci.yml/badge.svg)](https://github.com/nseaSeb/training_sql/actions/workflows/ci.yml)
 
-Mini-site React pour s'entraîner au SQL sur une vraie base PostgreSQL : méthode, cours visuels, lexique, cheatsheet (avec les équivalences SQL Server), tickets d'incidents réalistes, playground en direct et auto-évaluation.
+Mini-site React pour s'entraîner au SQL sur une vraie base PostgreSQL :
+
+- **Exercices corrigés automatiquement** (débutant → avancé) : ta requête et la solution sont exécutées sur la base, chacune dans une transaction annulée, puis leurs résultats sont comparés. Les exercices d'écriture (`UPDATE`, `CREATE TABLE`, vues, index…) sont corrigés par une requête de contrôle.
+- **Cours visuels**, méthode, lexique et cheatsheet (avec les équivalences SQL Server).
+- **Dialectes** : le même besoin en PostgreSQL, MySQL, SQL Server, Oracle et SQLite (pagination, dates, texte, NULL, upsert…).
+- **Tickets d'incidents** réalistes avec indices et solutions commentées.
+- **Playground** SQL en direct et **auto-évaluation**.
 
 Le jeu de données (schéma `retail` : magasins, produits, tickets de caisse, stocks, flux d'import…) est dans `kit/`.
 
 ![Accueil](docs/screenshots/accueil.png)
+
+| Exercices | Dialectes |
+|---|---|
+| ![Exercices](docs/screenshots/exercices.png) | ![Dialectes](docs/screenshots/dialectes.png) |
 
 | Cours | Tickets | Playground |
 |---|---|---|
@@ -55,8 +65,14 @@ Le `Dockerfile` construit le site et le sert avec l'API sur `$PORT`. Variables d
 ## Tests
 
 ```bash
-cd app && npm test
+cd app
+npm test                 # tests unitaires
+npm run test:exercises   # chaque exercice contre la base (docker compose up -d avant)
 ```
+
+## Ajouter un exercice
+
+Les exercices sont dans `app/src/content/exercises.ts`. Chacun a un énoncé, une solution et, pour un exercice d'écriture, une requête `check` relue après la réponse. L'énoncé doit donner les colonnes attendues dans l'ordre : la comparaison se fait par position. `npm run test:exercises` vérifie que la solution passe et qu'une réponse vide ou « ne rien faire » échoue.
 
 ## Licence
 

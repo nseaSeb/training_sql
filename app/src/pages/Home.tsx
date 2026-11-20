@@ -11,7 +11,7 @@ const plan: { when: string; what: string; page: Page; duration: string }[] = [
   { when: 'Étape 6', what: 'Tickets T01 à T04 (échauffement) dans le playground', page: 'tickets', duration: '45 min' },
   { when: 'Étape 7', what: 'Tickets T05 à T08 : doublons, flux, batch', page: 'tickets', duration: '1 h' },
   { when: 'Étape 8', what: 'Cours avancés : fenêtres, dates, EXPLAIN', page: 'cours', duration: '1 h' },
-  { when: 'Étape 9', what: 'Cheatsheet, dont les différences PostgreSQL / SQL Server', page: 'cheatsheet', duration: '20 min' },
+  { when: 'Étape 9', what: 'Cheatsheet, puis les différences entre dialectes SQL', page: 'dialectes', duration: '20 min' },
 ]
 
 const questions = [

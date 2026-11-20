@@ -1,6 +1,6 @@
 import { createContext, useContext } from 'react'
 
-export type Page = 'accueil' | 'methode' | 'cours' | 'lexique' | 'cheatsheet' | 'exercices' | 'tickets' | 'playground' | 'quiz'
+export type Page = 'accueil' | 'methode' | 'cours' | 'lexique' | 'cheatsheet' | 'exercices' | 'tickets' | 'dialectes' | 'playground' | 'quiz'
 
 type Nav = {
   page: Page

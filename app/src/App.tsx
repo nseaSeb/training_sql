@@ -11,6 +11,7 @@ const Cheatsheet = lazy(() => import('./pages/Cheatsheet'))
 const Exercises = lazy(() => import('./pages/Exercises'))
 const Tickets = lazy(() => import('./pages/Tickets'))
 const Quiz = lazy(() => import('./pages/Quiz'))
+const Dialects = lazy(() => import('./pages/Dialects'))
 const Playground = lazy(() => import('./pages/Playground'))
 
 const pages: { id: Page; label: string; icon: string }[] = [
@@ -21,6 +22,7 @@ const pages: { id: Page; label: string; icon: string }[] = [
   { id: 'cheatsheet', label: 'Cheatsheet', icon: '⌕' },
   { id: 'exercices', label: 'Exercices', icon: '✎' },
   { id: 'tickets', label: 'Tickets', icon: '◉' },
+  { id: 'dialectes', label: 'Dialectes', icon: '⇄' },
   { id: 'playground', label: 'Playground', icon: '▶' },
   { id: 'quiz', label: 'Auto-évaluation', icon: '✓' },
 ]
@@ -87,6 +89,7 @@ export default function App() {
             {page === 'cheatsheet' && <Cheatsheet />}
             {page === 'exercices' && <Exercises />}
             {page === 'tickets' && <Tickets />}
+            {page === 'dialectes' && <Dialects />}
             {page === 'playground' && <Playground sql={sql} setSql={setSql} />}
             {page === 'quiz' && <Quiz />}
           </Suspense>
